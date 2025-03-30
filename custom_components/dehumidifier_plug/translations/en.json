@@ -1,1 +1,35 @@
-
+{
+  "title": "Dehumidifier Plug",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure a dehumidifier",
+        "description": "Set up the plug and sensors",
+        "data": {
+          "name": "Name",
+          "switch_entity": "Plug Switch",
+          "power_sensor": "Power Sensor",
+          "humidity_sensor": "Humidity Sensor",
+          "full_power_threshold": "Minimum Power Threshold (W)",
+          "humidity_on_threshold": "Upper Humidity Limit (%)",
+          "humidity_off_threshold": "Lower Humidity Limit (%)",
+          "start_time": "Start Time",
+          "end_time": "End Time"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dehumidifier Options",
+        "data": {
+          "humidity_on_threshold": "Upper Humidity Limit (%)",
+          "humidity_off_threshold": "Lower Humidity Limit (%)",
+          "start_time": "Start Time",
+          "end_time": "End Time"
+        }
+      }
+    }
+  }
+}
