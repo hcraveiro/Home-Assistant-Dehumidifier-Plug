@@ -34,9 +34,9 @@ class DehumidifierSensor(SensorEntity):
         self.coordinator = coordinator
         self.sensor_id = sensor_id
         self.entity_description = description
-        object_id = slugify(coordinator.config.name)
+        object_id = slugify(f"{coordinator.config.name}_{sensor_id}")
         self._attr_name = f"{coordinator.config.name} {description.name}"
-        self._attr_unique_id = f"dehumidifier_{sensor_id}_{object_id}"
+        self._attr_unique_id = f"dehumidifier_{object_id}"
         if sensor_id != "status":
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._device_identifiers = device_identifiers
@@ -72,4 +72,6 @@ class DehumidifierSensor(SensorEntity):
     async def async_added_to_hass(self):
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
-        )
+        ) 
+        
+        

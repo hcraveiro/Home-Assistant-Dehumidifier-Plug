@@ -22,9 +22,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class DehumidifierAutoControlSwitch(SwitchEntity):
     def __init__(self, coordinator, device_identifiers):
         self.coordinator = coordinator
-        object_id = slugify(coordinator.config.name)
+        object_id = slugify(f"{coordinator.config.name}_control")
         self._attr_name = f"{coordinator.config.name} Control"
-        self._attr_unique_id = f"dehumidifier_auto_control_{object_id}"
+        self._attr_unique_id = f"dehumidifier_{object_id}"
         self._attr_is_on = True
         self._device_identifiers = device_identifiers
 
@@ -44,4 +44,6 @@ class DehumidifierAutoControlSwitch(SwitchEntity):
     def device_info(self):
         if self._device_identifiers:
             return {"identifiers": self._device_identifiers}
-        return None
+        return None 
+        
+        
