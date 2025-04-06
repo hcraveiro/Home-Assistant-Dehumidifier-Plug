@@ -1,5 +1,5 @@
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.const import PERCENTAGE, UnitOfPower
+from homeassistant.const import PERCENTAGE
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
@@ -40,21 +40,24 @@ class DehumidifierSensor(SensorEntity):
         if sensor_id != "status":
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._device_identifiers = device_identifiers
-
+    
     @property
     def native_value(self):
         data = self.coordinator.data
-        if self.sensor_id == "status":
-            if data.get("is_full"):
-                return "Full"
-            elif not data.get("inside_schedule"):
-                return "Outside dehumidifying hours"
-            elif data.get("humidity_low"):
-                return "Below target humidity"
-            elif data.get("is_on"):
-                return "Dehumidifying"
-            return "Idle"
-        return None
+        if not data:
+            return None
+
+        if data.get("is_full"):
+            return "Full"
+        if data.get("manual_override"):
+            return "Dehumidifying"
+        if data.get("is_on"):
+            return "Dehumidifying"
+        if not data.get("inside_schedule"):
+            return "Outside dehumidifying hours"
+        if data.get("humidity_low"):
+            return "Below target humidity"
+        return "Idle"
 
     @property
     def available(self):

@@ -3,6 +3,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.entity_component import DEFAULT_SCAN_INTERVAL
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 import logging
 
 from .const import *
@@ -18,6 +19,9 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
         self.storage = Store(hass, 1, f"{DOMAIN}_{slugify(config.name)}")
         self._last_auto_on = None
         self._power_low_since = None
+        self._manual_override = False
+        self._last_switch_state = None
+        self._auto_turning_on = False
 
         super().__init__(
             hass,
@@ -43,71 +47,105 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             auto_switch_id = f"switch.{slugify(f'{self.config.name}_control')}"
             state_auto = self.hass.states.get(auto_switch_id)
             auto_enabled = state_auto and state_auto.state == "on"
+            _LOGGER.debug(f"{self.config.name} - Found auto switch entity: {auto_switch_id} with state: {state_auto.state if state_auto else 'Not found'}")
 
             is_on = state_switch.state == "on"
             power = float(state_power.state)
             humidity = float(state_humidity.state)
 
-            now = datetime.now().time()
-            start = datetime.strptime(self.config.start_time, "%H:%M:%S").time()
-            end = datetime.strptime(self.config.end_time, "%H:%M:%S").time()
+            now_local = dt_util.now()
+            now_utc = dt_util.utcnow()
+            now = now_local.time()
 
+            start = self.config.start_time
+            end = self.config.end_time
             inside_schedule = start <= now <= end if start < end else now >= start or now <= end
+
             humidity_low = humidity < self.config.humidity_off_threshold
             humidity_high = humidity > self.config.humidity_on_threshold
 
+            # Detect manual override via switch state change
+            previous_state = self._last_switch_state
+            self._last_switch_state = state_switch.state
+
+            if previous_state is not None and previous_state != state_switch.state:
+                if state_switch.state == "on" and not self._auto_turning_on:
+                    self._manual_override = True
+                    _LOGGER.debug(f"{self.config.name} - Manual override detected: switch turned on manually.")
+                elif state_switch.state == "off":
+                    self._manual_override = False
+                    _LOGGER.debug(f"{self.config.name} - Switch turned off. Clearing manual override.")
+                await self.save_persistent_data()
+
+            # Full detection
             if is_on and power < self.config.full_power_threshold:
                 if not self._power_low_since:
-                    self._power_low_since = datetime.now()
+                    self._power_low_since = now_utc
+                    _LOGGER.debug(f"{self.config.name} - Power dropped below threshold. Starting full timer...")
                     await self.save_persistent_data()
             else:
                 if self._power_low_since:
-                    self._power_low_since = None
-                    await self.save_persistent_data()
+                    _LOGGER.debug(f"{self.config.name} - Power no longer low. Clearing full timer.")
+                self._power_low_since = None
+                await self.save_persistent_data()
 
             is_full = False
             if self._power_low_since:
-                elapsed = datetime.now() - self._power_low_since
+                elapsed = now_utc - self._power_low_since
                 if elapsed >= timedelta(seconds=60):
                     is_full = True
+                    _LOGGER.debug(f"{self.config.name} - Power has been low for {elapsed}. Marking as full.")
+                else:
+                    _LOGGER.debug(f"{self.config.name} - Power low for {elapsed.total_seconds():.0f}s but threshold not yet met.")
 
             _LOGGER.debug(
                 f"{self.config.name} - Conditions: auto_enabled={auto_enabled}, inside_schedule={inside_schedule}, "
-                f"is_on={is_on}, humidity_low={humidity_low}, humidity_high={humidity_high}, is_full={is_full}"
+                f"is_on={is_on}, humidity_low={humidity_low}, humidity_high={humidity_high}, "
+                f"is_full={is_full}, manual_override={self._manual_override}"
             )
 
-            if auto_enabled and inside_schedule:
-                if humidity_high and not is_full and not is_on:
-                    _LOGGER.info(f"{self.config.name} - Turning on dehumidifier...")
-                    await self.hass.services.async_call("switch", "turn_on", {"entity_id": self.config.switch_entity}, blocking=True)
-                    self._last_auto_on = datetime.now()
-                    await self.save_persistent_data()
-                elif humidity_low and is_on:
-                    _LOGGER.info(f"{self.config.name} - Humidity below threshold. Turning off dehumidifier...")
-                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": self.config.switch_entity}, blocking=True)
-            elif auto_enabled and not inside_schedule and is_on:
-                manual_override = False
-                if self._last_auto_on:
-                    manual_override = state_switch.last_changed > self._last_auto_on
-                if humidity_low:
-                    _LOGGER.info(f"{self.config.name} - Outside schedule and humidity low. Turning off dehumidifier...")
-                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": self.config.switch_entity}, blocking=True)
-                elif manual_override:
-                    _LOGGER.debug(f"{self.config.name} - Outside schedule. Manually turned on. Leaving dehumidifier on.")
+            # Automatic control
+            if auto_enabled:
+                self._auto_turning_on = False
+                if inside_schedule:
+                    if humidity_high and not is_full and not is_on:
+                        _LOGGER.info(f"{self.config.name} - Turning on dehumidifier...")
+                        self._auto_turning_on = True
+                        await self.hass.services.async_call("switch", "turn_on", {"entity_id": self.config.switch_entity}, blocking=True)
+                        self._last_auto_on = now_utc
+                        self._manual_override = False
+                        await self.save_persistent_data()
+                    elif humidity_low and is_on:
+                        _LOGGER.info(f"{self.config.name} - Humidity below threshold. Turning off dehumidifier...")
+                        await self.hass.services.async_call("switch", "turn_off", {"entity_id": self.config.switch_entity}, blocking=True)
+                        self._manual_override = False
+                        await self.save_persistent_data()
                 else:
-                    _LOGGER.info(f"{self.config.name} - Outside schedule. Turning off dehumidifier...")
-                    await self.hass.services.async_call("switch", "turn_off", {"entity_id": self.config.switch_entity}, blocking=True)
+                    if is_on:
+                        if humidity_low:
+                            _LOGGER.info(f"{self.config.name} - Outside schedule and humidity low. Turning off dehumidifier...")
+                            await self.hass.services.async_call("switch", "turn_off", {"entity_id": self.config.switch_entity}, blocking=True)
+                            self._manual_override = False
+                            await self.save_persistent_data()
+                        elif self._manual_override:
+                            _LOGGER.debug(f"{self.config.name} - Outside schedule. Manually turned on. Leaving dehumidifier on.")
+                        else:
+                            _LOGGER.info(f"{self.config.name} - Outside schedule. Turning off dehumidifier...")
+                            await self.hass.services.async_call("switch", "turn_off", {"entity_id": self.config.switch_entity}, blocking=True)
 
-            _LOGGER.debug("%s - Dehumidifier data: is_on=%s, power=%.2f, humidity=%.2f, inside_schedule=%s, "
-                "humidity_low=%s, humidity_high=%s, is_full=%s",
-                self.config.name, is_on, power, humidity, inside_schedule, humidity_low, humidity_high, is_full
+            _LOGGER.debug(
+                f"{self.config.name} - Dehumidifier data: is_on={is_on}, power={power:.2f}, humidity={humidity:.2f}, "
+                f"inside_schedule={inside_schedule}, humidity_low={humidity_low}, humidity_high={humidity_high}, "
+                f"is_full={is_full}"
             )
 
             return {
-               "is_on": is_on,
-               "is_full": is_full,
-               "inside_schedule": inside_schedule,
-               "humidity_low": humidity_low
+                "is_on": is_on,
+                "is_full": is_full,
+                "inside_schedule": inside_schedule,
+                "humidity_low": humidity_low,
+                "humidity_high": humidity_high,
+                "manual_override": self._manual_override,
             }
 
         except Exception as e:
@@ -117,12 +155,16 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
         data = await self.storage.async_load()
         if data:
             if "last_auto_on" in data:
-                self._last_auto_on = datetime.fromisoformat(data["last_auto_on"])
+                self._last_auto_on = dt_util.parse_datetime(data["last_auto_on"])
             if "power_low_since" in data:
-                self._power_low_since = datetime.fromisoformat(data["power_low_since"])
+                self._power_low_since = dt_util.parse_datetime(data["power_low_since"])
+            self._manual_override = data.get("manual_override", False)
+            self._last_switch_state = data.get("last_switch_state", None)
 
     async def save_persistent_data(self):
         await self.storage.async_save({
             "last_auto_on": self._last_auto_on.isoformat() if self._last_auto_on else None,
-            "power_low_since": self._power_low_since.isoformat() if self._power_low_since else None
+            "power_low_since": self._power_low_since.isoformat() if self._power_low_since else None,
+            "manual_override": self._manual_override,
+            "last_switch_state": self._last_switch_state,
         })

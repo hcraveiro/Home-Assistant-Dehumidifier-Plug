@@ -1,4 +1,5 @@
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.device_registry import async_get as async_get_device_registry
 from .const import DOMAIN
@@ -19,14 +20,20 @@ async def async_setup_entry(hass, entry, async_add_entities):
         DehumidifierAutoControlSwitch(coordinator, device_identifiers)
     ])
 
-class DehumidifierAutoControlSwitch(SwitchEntity):
+class DehumidifierAutoControlSwitch(SwitchEntity, RestoreEntity):
     def __init__(self, coordinator, device_identifiers):
         self.coordinator = coordinator
         object_id = slugify(f"{coordinator.config.name}_control")
         self._attr_name = f"{coordinator.config.name} Control"
         self._attr_unique_id = f"dehumidifier_{object_id}"
-        self._attr_is_on = True
+        self._attr_is_on = True  # Default state if no saved state
         self._device_identifiers = device_identifiers
+
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        old_state = await self.async_get_last_state()
+        if old_state is not None:
+            self._attr_is_on = old_state.state == "on"
 
     @property
     def is_on(self):
@@ -44,6 +51,4 @@ class DehumidifierAutoControlSwitch(SwitchEntity):
     def device_info(self):
         if self._device_identifiers:
             return {"identifiers": self._device_identifiers}
-        return None 
-        
-        
+        return None
