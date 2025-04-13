@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class DehumidifierConfig:
+    """Stores configuration for a dehumidifier instance."""
     name: str
     switch_entity: str
     power_sensor: str
@@ -15,6 +16,8 @@ class DehumidifierConfig:
 
     @staticmethod
     def from_dict(data: dict) -> "DehumidifierConfig":
+        """Creates a DehumidifierConfig object from a dictionary, converting time strings if needed."""
+
         def ensure_time(value):
             if isinstance(value, time):
                 return value

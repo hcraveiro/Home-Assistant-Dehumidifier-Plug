@@ -17,14 +17,18 @@ PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Initialize the integration (not used for YAML setup)."""
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up the integration from a config entry."""
+
+    # Merge config entry data and options
     data = {
         **entry.data,
         **entry.options,
-        CONF_NAME: entry.title,  # garante que temos o título como nome interno
+        CONF_NAME: entry.title,  # Use the title as internal name
     }
 
     config = DehumidifierConfig.from_dict(data)
@@ -33,11 +37,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
+
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
     }
 
-    # 👇 Adiciona o listener para forçar reload após alterações nas opções
+    # Reload entry automatically if options are updated
     entry.async_on_unload(entry.add_update_listener(update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -45,6 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload the config entry and its platforms."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
@@ -52,5 +58,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
-    """Força o reload da config entry quando as opções são atualizadas."""
+    """Trigger reload when options are changed."""
     await hass.config_entries.async_reload(entry.entry_id)
+

@@ -22,6 +22,7 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
         self._manual_override = False
         self._last_switch_state = None
         self._auto_turning_on = False
+        self._is_full_latched = False
 
         super().__init__(
             hass,
@@ -59,12 +60,13 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
 
             start = self.config.start_time
             end = self.config.end_time
+            # Schedule handles cross-midnight periods
             inside_schedule = start <= now <= end if start < end else now >= start or now <= end
 
             humidity_low = humidity < self.config.humidity_off_threshold
             humidity_high = humidity > self.config.humidity_on_threshold
 
-            # Detect manual override via switch state change
+            # Manual override detection
             previous_state = self._last_switch_state
             self._last_switch_state = state_switch.state
 
@@ -77,7 +79,8 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug(f"{self.config.name} - Switch turned off. Clearing manual override.")
                 await self.save_persistent_data()
 
-            # Full detection
+            # Full detection logic and latching
+            is_full = False
             if is_on and power < self.config.full_power_threshold:
                 if not self._power_low_since:
                     self._power_low_since = now_utc
@@ -88,15 +91,24 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug(f"{self.config.name} - Power no longer low. Clearing full timer.")
                 self._power_low_since = None
                 await self.save_persistent_data()
+                if self._is_full_latched:
+                    _LOGGER.debug(f"{self.config.name} - Tank no longer full. Clearing latched full state.")
+                    self._is_full_latched = False
+                    await self.save_persistent_data()
 
-            is_full = False
             if self._power_low_since:
                 elapsed = now_utc - self._power_low_since
                 if elapsed >= timedelta(seconds=60):
                     is_full = True
-                    _LOGGER.debug(f"{self.config.name} - Power has been low for {elapsed}. Marking as full.")
+                    if not self._is_full_latched:
+                        _LOGGER.debug(f"{self.config.name} - Power has been low for {elapsed}. Marking as full and latching.")
+                        self._is_full_latched = True
+                        await self.save_persistent_data()
                 else:
                     _LOGGER.debug(f"{self.config.name} - Power low for {elapsed.total_seconds():.0f}s but threshold not yet met.")
+
+            if self._is_full_latched:
+                is_full = True
 
             _LOGGER.debug(
                 f"{self.config.name} - Conditions: auto_enabled={auto_enabled}, inside_schedule={inside_schedule}, "
@@ -104,7 +116,7 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                 f"is_full={is_full}, manual_override={self._manual_override}"
             )
 
-            # Automatic control
+            # Automatic control logic
             if auto_enabled:
                 self._auto_turning_on = False
                 if inside_schedule:
@@ -129,6 +141,8 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                             await self.save_persistent_data()
                         elif self._manual_override:
                             _LOGGER.debug(f"{self.config.name} - Outside schedule. Manually turned on. Leaving dehumidifier on.")
+                        elif is_full:
+                            _LOGGER.debug(f"{self.config.name} - Outside schedule and latched full. Leaving dehumidifier on.")
                         else:
                             _LOGGER.info(f"{self.config.name} - Outside schedule. Turning off dehumidifier...")
                             await self.hass.services.async_call("switch", "turn_off", {"entity_id": self.config.switch_entity}, blocking=True)
@@ -160,6 +174,7 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                 self._power_low_since = dt_util.parse_datetime(data["power_low_since"])
             self._manual_override = data.get("manual_override", False)
             self._last_switch_state = data.get("last_switch_state", None)
+            self._is_full_latched = data.get("is_full_latched", False)
 
     async def save_persistent_data(self):
         await self.storage.async_save({
@@ -167,4 +182,6 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             "power_low_since": self._power_low_since.isoformat() if self._power_low_since else None,
             "manual_override": self._manual_override,
             "last_switch_state": self._last_switch_state,
+            "is_full_latched": self._is_full_latched,
         })
+

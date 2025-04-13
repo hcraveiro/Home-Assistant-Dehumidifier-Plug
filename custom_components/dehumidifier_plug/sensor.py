@@ -40,18 +40,17 @@ class DehumidifierSensor(SensorEntity):
         if sensor_id != "status":
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._device_identifiers = device_identifiers
-    
+
     @property
     def native_value(self):
         data = self.coordinator.data
         if not data:
             return None
 
+        # Priority: Full > Dehumidifying > Outside hours > Below target > Idle
         if data.get("is_full"):
             return "Full"
-        if data.get("manual_override"):
-            return "Dehumidifying"
-        if data.get("is_on"):
+        if data.get("is_on") or data.get("manual_override"):
             return "Dehumidifying"
         if not data.get("inside_schedule"):
             return "Outside dehumidifying hours"
@@ -75,6 +74,4 @@ class DehumidifierSensor(SensorEntity):
     async def async_added_to_hass(self):
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
-        ) 
-        
-        
+        )

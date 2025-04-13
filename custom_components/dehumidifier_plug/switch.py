@@ -26,11 +26,12 @@ class DehumidifierAutoControlSwitch(SwitchEntity, RestoreEntity):
         object_id = slugify(f"{coordinator.config.name}_control")
         self._attr_name = f"{coordinator.config.name} Control"
         self._attr_unique_id = f"dehumidifier_{object_id}"
-        self._attr_is_on = True  # Default state if no saved state
+        self._attr_is_on = True  # Default to on unless restored from previous state
         self._device_identifiers = device_identifiers
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
+        # Restore previous state after Home Assistant restarts
         old_state = await self.async_get_last_state()
         if old_state is not None:
             self._attr_is_on = old_state.state == "on"
@@ -52,3 +53,4 @@ class DehumidifierAutoControlSwitch(SwitchEntity, RestoreEntity):
         if self._device_identifiers:
             return {"identifiers": self._device_identifiers}
         return None
+

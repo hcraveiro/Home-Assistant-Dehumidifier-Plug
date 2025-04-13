@@ -26,13 +26,20 @@ class DehumidifierConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data=user_input
             )
 
+        # Display the setup form with default values and selectors
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
                 vol.Required(CONF_NAME): selector.TextSelector(),
-                vol.Required(CONF_SWITCH): selector.EntitySelector(selector.EntitySelectorConfig(domain="switch")),
-                vol.Required(CONF_POWER): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
-                vol.Required(CONF_HUMIDITY): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor")),
+                vol.Required(CONF_SWITCH): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="switch")
+                ),
+                vol.Required(CONF_POWER): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
+                vol.Required(CONF_HUMIDITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
                 vol.Optional(CONF_FULL_THRESHOLD, default=DEFAULT_FULL_THRESHOLD): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=0, max=100, step=0.1, mode=selector.NumberSelectorMode.BOX)
                 ),
@@ -55,16 +62,30 @@ class DehumidifierOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
+        # Display the options form for editing thresholds and time range
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Required(CONF_HUMIDITY_ON, default=self.config_entry.options.get(CONF_HUMIDITY_ON, DEFAULT_HUMIDITY_ON)): selector.NumberSelector(
+                vol.Required(
+                    CONF_HUMIDITY_ON,
+                    default=self.config_entry.options.get(CONF_HUMIDITY_ON, DEFAULT_HUMIDITY_ON)
+                ): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=0, max=100, step=1, unit_of_measurement="%", mode=selector.NumberSelectorMode.BOX)
                 ),
-                vol.Required(CONF_HUMIDITY_OFF, default=self.config_entry.options.get(CONF_HUMIDITY_OFF, DEFAULT_HUMIDITY_OFF)): selector.NumberSelector(
+                vol.Required(
+                    CONF_HUMIDITY_OFF,
+                    default=self.config_entry.options.get(CONF_HUMIDITY_OFF, DEFAULT_HUMIDITY_OFF)
+                ): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=0, max=100, step=1, unit_of_measurement="%", mode=selector.NumberSelectorMode.BOX)
                 ),
-                vol.Optional(CONF_START_TIME, default=self.config_entry.options.get(CONF_START_TIME, DEFAULT_START_TIME)): selector.TimeSelector(),
-                vol.Optional(CONF_END_TIME, default=self.config_entry.options.get(CONF_END_TIME, DEFAULT_END_TIME)): selector.TimeSelector(),
+                vol.Optional(
+                    CONF_START_TIME,
+                    default=self.config_entry.options.get(CONF_START_TIME, DEFAULT_START_TIME)
+                ): selector.TimeSelector(),
+                vol.Optional(
+                    CONF_END_TIME,
+                    default=self.config_entry.options.get(CONF_END_TIME, DEFAULT_END_TIME)
+                ): selector.TimeSelector(),
             })
         )
+
