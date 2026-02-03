@@ -1,7 +1,7 @@
 {
   "domain": "dehumidifier_plug",
   "name": "Dehumidifier Plug",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "documentation": "",
   "dependencies": [],
   "codeowners": [],
@@ -9,3 +9,4 @@
   "iot_class": "local_polling",
   "config_flow": true
 }
+
