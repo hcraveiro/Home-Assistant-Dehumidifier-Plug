@@ -14,7 +14,11 @@
           "humidity_on_threshold": "Upper Humidity Limit (%)",
           "humidity_off_threshold": "Lower Humidity Limit (%)",
           "weekdays": "Days of the week",
-          "time_windows": "Heating intervals"
+          "time_windows": "Operating intervals"
+        },
+        "data_description": {
+          "time_windows": "Add or remove operating intervals. Overnight intervals continue into the next day.",
+          "weekdays": "Select the days when automatic dehumidification is allowed."
         }
       }
     },
@@ -34,7 +38,11 @@
           "humidity_sensor": "Humidity Sensor",
           "full_power_threshold": "Minimum Power Threshold (W)",
           "weekdays": "Days of the week",
-          "time_windows": "Heating intervals"
+          "time_windows": "Operating intervals"
+        },
+        "data_description": {
+          "time_windows": "Add or remove operating intervals. Overnight intervals continue into the next day.",
+          "weekdays": "Select the days when automatic dehumidification is allowed."
         }
       }
     },
