@@ -114,8 +114,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(defaults["weekdays"]), 7)
 
     async def test_options_preserve_original_entity_for_null_override(self):
-        obj = flow.DehumidifierOptionsFlowHandler()
-        obj._config_entry = SimpleNamespace(data=legacy, options={"power_sensor": None})
+        obj = flow.DehumidifierOptionsFlowHandler(SimpleNamespace(data=legacy, options={"power_sensor": None}))
         output = await obj.async_step_init()
         defaults = {key.schema: key.default() for key in output["data_schema"].schema if hasattr(key, "default") and callable(key.default)}
         self.assertEqual(defaults["power_sensor"], "sensor.power")
