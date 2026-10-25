@@ -47,6 +47,7 @@ for name, mod in {
     "homeassistant.util.dt": dt,
 }.items():
     sys.modules.setdefault(name, mod)
+sys.modules["homeassistant.core"].HomeAssistant = object
 sys.modules["homeassistant.util"].dt = dt
 load("const")
 load("models")
