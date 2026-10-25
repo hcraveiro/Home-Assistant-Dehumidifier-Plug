@@ -120,15 +120,13 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(defaults["power_sensor"], "sensor.power")
 
     async def test_options_save_multiple_windows(self):
-        obj = flow.DehumidifierOptionsFlowHandler()
-        obj.config_entry = SimpleNamespace(data=legacy, options={})
+        obj = flow.DehumidifierOptionsFlowHandler(SimpleNamespace(data=legacy, options={}))
         output = await obj.async_step_init({**valid, "time_windows": windows * 2})
         self.assertEqual(output["type"], "create_entry")
         self.assertEqual(len(output["data"]["time_windows"]), 2)
 
     async def test_options_reject_empty_windows(self):
-        obj = flow.DehumidifierOptionsFlowHandler()
-        obj.config_entry = SimpleNamespace(data=legacy, options={})
+        obj = flow.DehumidifierOptionsFlowHandler(SimpleNamespace(data=legacy, options={}))
         output = await obj.async_step_init({**valid, "time_windows": []})
         self.assertEqual(output["errors"]["base"], "invalid_schedule")
 
