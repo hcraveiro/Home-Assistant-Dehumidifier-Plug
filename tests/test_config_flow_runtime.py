@@ -98,9 +98,16 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(output["type"], "form")
         self.assertEqual(len(output["data_schema"].schema), 9)
 
+    async def test_options_factory_accepts_config_entry(self):
+        entry = SimpleNamespace(data=legacy, options={})
+        obj = flow.DehumidifierConfigFlow.async_get_options_flow(entry)
+        self.assertIs(obj._config_entry, entry)
+        result = await obj.async_step_init()
+        self.assertEqual(result["type"], "form")
+
     async def test_options_migrates_legacy_interval(self):
-        obj = flow.DehumidifierOptionsFlowHandler()
-        obj.config_entry = SimpleNamespace(data=legacy, options={})
+        obj = flow.DehumidifierOptionsFlowHandler(SimpleNamespace(data=legacy, options={}))
+        obj._config_entry = SimpleNamespace(data=legacy, options={})
         output = await obj.async_step_init()
         defaults = {key.schema: key.default() for key in output["data_schema"].schema if hasattr(key, "default") and callable(key.default)}
         self.assertEqual(defaults["time_windows"], [{"start": "09:00:00", "end": "20:00:00"}])
@@ -108,7 +115,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_options_preserve_original_entity_for_null_override(self):
         obj = flow.DehumidifierOptionsFlowHandler()
-        obj.config_entry = SimpleNamespace(data=legacy, options={"power_sensor": None})
+        obj._config_entry = SimpleNamespace(data=legacy, options={"power_sensor": None})
         output = await obj.async_step_init()
         defaults = {key.schema: key.default() for key in output["data_schema"].schema if hasattr(key, "default") and callable(key.default)}
         self.assertEqual(defaults["power_sensor"], "sensor.power")
