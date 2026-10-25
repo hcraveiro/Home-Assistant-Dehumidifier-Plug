@@ -29,6 +29,6 @@ jobs:
       - name: Measure config, setup, entities and utilities coverage
         run: |
           coverage run --branch --include='*/dehumidifier_plug/config_flow.py,*/dehumidifier_plug/__init__.py,*/dehumidifier_plug/sensor.py,*/dehumidifier_plug/switch.py,*/dehumidifier_plug/utils.py' -m unittest discover -s tests -p 'test_*.py' -v
-          coverage report -m
+          coverage report -m --fail-under=85
       - name: Compile integration
         run: python -m compileall -q custom_components/dehumidifier_plug tests
