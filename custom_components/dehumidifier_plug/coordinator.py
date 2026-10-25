@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.entity_component import DEFAULT_SCAN_INTERVAL
@@ -8,6 +8,7 @@ import logging
 
 from .const import *
 from .models import DehumidifierConfig
+from .schedule import is_in_schedule
 from .utils import slugify, _safe_parse_dt
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,14 +55,10 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             power = float(state_power.state)
             humidity = float(state_humidity.state)
 
-            now_local = dt_util.now()
             now_utc = dt_util.utcnow()
-            now = now_local.time()
-
-            start = self.config.start_time
-            end = self.config.end_time
-            # Schedule handles cross-midnight periods
-            inside_schedule = start <= now <= end if start < end else now >= start or now <= end
+            inside_schedule = is_in_schedule(
+                dt_util.now(), self.config.weekdays, self.config.time_windows
+            )
 
             humidity_low = humidity < self.config.humidity_off_threshold
             humidity_high = humidity > self.config.humidity_on_threshold
