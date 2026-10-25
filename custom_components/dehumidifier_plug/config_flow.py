@@ -105,13 +105,16 @@ class DehumidifierConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class DehumidifierOptionsFlowHandler(config_entries.OptionsFlow):
+    def __init__(self, config_entry):
+        self._config_entry = config_entry
+
     async def async_step_init(self, user_input=None):
         if user_input is not None and valid_schedule(user_input):
             return self.async_create_entry(title="", data=user_input)
 
         data = {
-            **self.config_entry.data,
-            **{key: value for key, value in self.config_entry.options.items() if value is not None},
+            **self._config_entry.data,
+            **{key: value for key, value in self._config_entry.options.items() if value is not None},
             **(user_input or {}),
         }
         return self.async_show_form(
