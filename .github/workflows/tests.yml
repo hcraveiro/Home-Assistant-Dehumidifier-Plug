@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install coverage
-        run: python -m pip install coverage voluptuous voluptuous
+        run: python -m pip install coverage voluptuous
       - name: Run unit tests and enforce coverage
         run: |
           coverage run --branch --include='*/dehumidifier_plug/models.py,*/dehumidifier_plug/schedule.py' -m unittest discover -s tests -p 'test_*.py' -v
@@ -29,6 +29,6 @@ jobs:
       - name: Measure config, setup, entities and utilities coverage
         run: |
           coverage run --branch --include='*/dehumidifier_plug/config_flow.py,*/dehumidifier_plug/__init__.py,*/dehumidifier_plug/sensor.py,*/dehumidifier_plug/switch.py,*/dehumidifier_plug/utils.py' -m unittest discover -s tests -p 'test_*.py' -v
-          coverage report -m --fail-under=85
+          coverage report -m --fail-under=88
       - name: Compile integration
         run: python -m compileall -q custom_components/dehumidifier_plug tests
