@@ -61,8 +61,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
             "humidity_sensor": "sensor.humidity", "start_time": "11:00:00",
             "end_time": "12:00:00",
         }, options={})
-        handler = self.flow.DehumidifierOptionsFlowHandler()
-        handler.config_entry = entry
+        handler = self.flow.DehumidifierOptionsFlowHandler(entry)
         response = await handler.async_step_init()
         self.assertEqual(response["type"], "form")
         keys = {key.schema: key.default() for key in response["data_schema"].schema
@@ -73,8 +72,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_options_submit_keeps_entities_and_windows(self):
         entry = SimpleNamespace(data={}, options={})
-        handler = self.flow.DehumidifierOptionsFlowHandler()
-        handler.config_entry = entry
+        handler = self.flow.DehumidifierOptionsFlowHandler(entry)
         settings = {
             "switch_entity": "switch.new", "power_sensor": "sensor.new",
             "humidity_sensor": "sensor.rh", "weekdays": ["fri"],
@@ -85,8 +83,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["data"], settings)
 
     async def test_invalid_options_show_translated_error(self):
-        handler = self.flow.DehumidifierOptionsFlowHandler()
-        handler.config_entry = SimpleNamespace(data={}, options={})
+        handler = self.flow.DehumidifierOptionsFlowHandler(SimpleNamespace(data={}, options={}))
         result = await handler.async_step_init({"time_windows": []})
         self.assertEqual(result["errors"], {"base": "invalid_schedule"})
 
@@ -103,11 +100,10 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(success["title"], "Bedroom")
 
     async def test_missing_power_option_has_no_default(self):
-        handler = self.flow.DehumidifierOptionsFlowHandler()
-        handler.config_entry = SimpleNamespace(
+        handler = self.flow.DehumidifierOptionsFlowHandler(SimpleNamespace(
             data={"switch_entity": "switch.plug", "humidity_sensor": "sensor.rh"},
             options={"power_sensor": None},
-        )
+        ))
         response = await handler.async_step_init()
         power = next(k for k in response["data_schema"].schema if k.schema == "power_sensor")
         self.assertFalse(callable(getattr(power, "default", None)))
