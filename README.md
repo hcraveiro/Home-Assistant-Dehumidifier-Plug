@@ -65,3 +65,6 @@ Yes. Use the **Configure** option in the integration panel.
 ### Does the integration support multiple dehumidifiers?
 
 Yes. You can add multiple config entries, each with their own independent settings and entities.
+## Weekly scheduling (next release)
+
+Use **Configure** to change the plug, power sensor, humidity sensor and thresholds. Select weekdays and add or remove any number of time intervals. An overnight interval applies to the day on which it starts. Existing entries keep their original interval and all seven weekdays by default. Existing humidity hysteresis, full-tank detection and manual override behavior is unchanged.
