@@ -25,6 +25,6 @@ jobs:
       - name: Measure coordinator coverage
         run: |
           coverage run --branch --include='*/dehumidifier_plug/coordinator.py' -m unittest discover -s tests -p 'test_*.py' -v
-          coverage report -m
+          coverage report -m --fail-under=70
       - name: Compile integration
         run: python -m compileall -q custom_components/dehumidifier_plug tests
