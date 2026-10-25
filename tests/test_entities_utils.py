@@ -56,7 +56,9 @@ def load(name):
     return module
 
 load("const")
-utils = load("utils")
+utils_spec = importlib.util.spec_from_file_location("isolated_dehumidifier_utils", BASE / "utils.py")
+utils = importlib.util.module_from_spec(utils_spec)
+utils_spec.loader.exec_module(utils)
 sensor = load("sensor")
 switch = load("switch")
 
