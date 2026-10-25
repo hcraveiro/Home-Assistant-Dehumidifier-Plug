@@ -160,6 +160,60 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
             await self.unit._async_update_data()
         self.unit.hass.services.async_call.assert_not_awaited()
 
+
+    async def test_exact_upper_limit_does_not_start(self):
+        self.create(humidity="60")
+        await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_exact_lower_limit_does_not_stop(self):
+        self.create(switch="on", power="150", humidity="50")
+        await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_below_lower_limit_stops_outside_window_even_manual(self):
+        self.create(switch="on", power="150", humidity="45", inside=False)
+        self.unit._manual_override = True
+        await self.unit._async_update_data()
+        self.assertEqual(self.unit.hass.services.async_call.call_args.args[:2], ("switch", "turn_off"))
+
+    async def test_low_power_before_full_timeout(self):
+        self.create(switch="on", power="0")
+        self.unit._power_low_since = dt.utcnow() - timedelta(seconds=59)
+        result = await self.unit._async_update_data()
+        self.assertFalse(result["is_full"])
+
+    async def test_low_power_exactly_at_full_timeout(self):
+        self.create(switch="on", power="0")
+        self.unit._power_low_since = dt.utcnow() - timedelta(seconds=60)
+        result = await self.unit._async_update_data()
+        self.assertTrue(result["is_full"])
+
+    async def test_full_latch_still_blocks_no_commands_when_running(self):
+        self.create(switch="on", power="0")
+        self.unit._is_full_latched = True
+        result = await self.unit._async_update_data()
+        self.assertTrue(result["is_full"])
+        self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_unknown_humidity_fails_without_switching(self):
+        self.create(humidity="unknown")
+        with self.assertRaises(coordinator.UpdateFailed):
+            await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_non_numeric_power_fails_without_switching(self):
+        self.create(power="not-a-number")
+        with self.assertRaises(coordinator.UpdateFailed):
+            await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_service_call_failure_is_reported(self):
+        self.create()
+        self.unit.hass.services.async_call.side_effect = RuntimeError("service unavailable")
+        with self.assertRaises(coordinator.UpdateFailed):
+            await self.unit._async_update_data()
+
     async def test_missing_sensor_fails_safe(self):
         states = self.create()
         del states["sensor.power"]
