@@ -1,4 +1,4 @@
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryError
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.const import Platform
@@ -11,7 +11,7 @@ from .const import (
     CONF_NAME,
 )
 from .coordinator import DehumidifierCoordinator
-from .models import DehumidifierConfig
+from .models import DehumidifierConfig, merge_entry_settings
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
 
@@ -24,12 +24,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the integration from a config entry."""
 
-    # Merge config entry data and options
-    data = {
-        **entry.data,
-        **entry.options,
-        CONF_NAME: entry.title,  # Use the title as internal name
-    }
+    # Register before a failed setup so correcting Options can recover it.
+    entry.async_on_unload(entry.add_update_listener(update_listener))
+    data = {**merge_entry_settings(entry.data, entry.options), CONF_NAME: entry.title}
+    missing = [key for key in (CONF_SWITCH, CONF_POWER, CONF_HUMIDITY) if not data.get(key)]
+    if missing:
+        raise ConfigEntryError(
+            f"Missing configuration: {', '.join(missing)}. Open Configure to select entities."
+        )
 
     config = DehumidifierConfig.from_dict(data)
     coordinator = DehumidifierCoordinator(hass, config)
@@ -41,9 +43,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
     }
-
-    # Reload entry automatically if options are updated
-    entry.async_on_unload(entry.add_update_listener(update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

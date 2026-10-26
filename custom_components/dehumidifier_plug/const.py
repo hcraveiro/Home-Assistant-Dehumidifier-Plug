@@ -18,3 +18,7 @@ DEFAULT_HUMIDITY_OFF = 50     # Percentage: stop dehumidifying below this
 DEFAULT_START_TIME = "09:00:00"
 DEFAULT_END_TIME = "20:00:00"
 
+
+CONF_WEEKDAYS = "weekdays"
+DEFAULT_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+CONF_TIME_WINDOWS = "time_windows"
