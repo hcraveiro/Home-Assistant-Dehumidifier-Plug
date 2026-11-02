@@ -18,6 +18,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         package.__path__ = [str(ROOT)]
         config_entries = types.ModuleType("homeassistant.config_entries")
         class ConfigFlow:
+            hass = SimpleNamespace(services=SimpleNamespace(async_services=lambda: {}))
             def __init_subclass__(cls, **kwargs):
                 pass
             def async_create_entry(self, **kwargs):

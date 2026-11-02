@@ -27,6 +27,8 @@ class EntityTests(unittest.IsolatedAsyncioTestCase):
         fake_switch = types.ModuleType("homeassistant.components.switch")
         fake_switch.SwitchEntity = type("SwitchEntity", (), {
             "schedule_update_ha_state": lambda self: None,
+            "async_write_ha_state": lambda self: None,
+            "async_on_remove": lambda self, callback: None,
         })
         fake_sensor = types.ModuleType("homeassistant.components.sensor")
         fake_sensor.SensorEntity = object
@@ -66,6 +68,7 @@ class EntityTests(unittest.IsolatedAsyncioTestCase):
             config=SimpleNamespace(name="Suite", switch_entity="switch.plug"),
             data={}, last_update_success=True,
             async_request_refresh=AsyncMock(), async_add_listener=Mock(return_value=Mock()),
+            _auto_control_enabled=None, save_persistent_data=AsyncMock(),
         )
 
     def test_sensor_state_priorities(self):
@@ -103,13 +106,13 @@ class EntityTests(unittest.IsolatedAsyncioTestCase):
         await entity.async_update()
         self.coordinator.async_request_refresh.assert_awaited_once()
 
-    def test_auto_switch_toggles(self):
+    async def test_auto_switch_toggles(self):
         entity = self.switch.DehumidifierAutoControlSwitch(self.coordinator, None)
         self.assertTrue(entity.is_on)
         self.assertEqual(entity._attr_unique_id, "dehumidifier_suite_control")
-        entity.turn_off()
+        await entity.async_turn_off()
         self.assertFalse(entity.is_on)
-        entity.turn_on()
+        await entity.async_turn_on()
         self.assertTrue(entity.is_on)
 
     async def test_auto_switch_restores_off(self):
@@ -123,6 +126,28 @@ class EntityTests(unittest.IsolatedAsyncioTestCase):
         entity.async_get_last_state = AsyncMock(return_value=None)
         await entity.async_added_to_hass()
         self.assertTrue(entity.is_on)
+
+    async def test_restore_setting_after_unavailable_state(self):
+        entity = self.switch.DehumidifierAutoControlSwitch(self.coordinator, None)
+        self.coordinator._auto_control_enabled = False
+        entity.async_get_last_state = AsyncMock(return_value=SimpleNamespace(
+            state="unavailable", attributes={}))
+        await entity.async_added_to_hass()
+        self.assertFalse(entity.is_on)
+        self.assertTrue(entity.ready)
+
+    def test_control_availability_tracks_coordinator(self):
+        entity = self.switch.DehumidifierAutoControlSwitch(self.coordinator, None)
+        self.assertTrue(entity.available)
+        self.coordinator.last_update_success = False
+        self.assertFalse(entity.available)
+
+    def test_disabled_control_is_reported_in_status(self):
+        entity = self.sensor.DehumidifierSensor(
+            self.coordinator, "status", self.sensor.SENSOR_TYPES["status"], None)
+        self.coordinator.data = {"auto_enabled": False, "inside_schedule": True}
+        self.assertEqual(entity.native_value, "Automatic control disabled")
+        self.assertFalse(entity.extra_state_attributes["auto_enabled"])
 
 
 if __name__ == "__main__":

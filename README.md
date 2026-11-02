@@ -19,8 +19,11 @@ Each dehumidifier requires:
 - **Minimum Power Threshold (W)** — power below this level while the plug is on indicates a potentially full tank (default: 2 W).
 - **Upper Humidity Limit (%)** — automatic operation starts when humidity rises **above** this value (default: 60%).
 - **Lower Humidity Limit (%)** — automatic operation stops when humidity falls **below** this value (default: 50%).
+- **Low-power timeout** — seconds of continuously observed low power before the tank is considered possibly full (default: 60 seconds).
+- **Notifications** — optionally select one or more Home Assistant mobile app notification services. One notification is sent when a new possible-full condition is detected.
 
 The difference between the two humidity limits provides hysteresis to reduce unnecessary switching.
+The lower limit must be strictly below the upper limit. Readings must be numeric and finite; humidity must be in the range 0–100%. Power in W or kW is supported.
 
 ### Weekly schedule and operating intervals
 
@@ -29,6 +32,7 @@ The difference between the two humidity limits provides hysteresis to reduce unn
 - Multiple intervals on the same day are supported; the dehumidifier can stop between them and restart when the next interval begins, subject to humidity and other control conditions.
 - Intervals crossing midnight are supported. For example, Monday 22:00–02:00 remains eligible until Tuesday 02:00, even when Tuesday is not selected.
 - Start times are inclusive; end times are exclusive.
+- Equal start and end times mean the entire selected calendar day, not a zero-length interval.
 - By default, every weekday is selected and the operating interval is **09:00–20:00**.
 
 The schedule restricts **automatic** operation. Humidity thresholds, the automatic-control switch, full-tank detection and manual-override behavior also influence whether the plug is turned on or off. Manually enabled operation may be retained outside scheduled hours under the existing override rules.
@@ -45,14 +49,14 @@ Saving Options triggers a reload of that configuration entry. If a previous conf
 
 Each configured dehumidifier creates:
 
-- `sensor.<name>_status` — displays **Full**, **Dehumidifying**, **Outside dehumidifying hours**, **Below target humidity**, or **Idle**.
+- `sensor.<name>_status` — displays **Full**, **Dehumidifying**, **Automatic control disabled**, **Outside dehumidifying hours**, **Below target humidity**, or **Idle**. Its attributes expose the control decisions independently.
 - `switch.<name>_control` — enables or disables automatic dehumidifier control. Its state is restored after a Home Assistant restart when a previous state is available.
 
 Entity IDs are derived from the configured name and may differ when Home Assistant resolves naming collisions or existing registry entries.
 
 ### Full-tank detection
 
-When the plug is on and measured power remains **below** the configured minimum-power threshold for at least **60 seconds**, the status becomes **Full**. This state prevents automatic start commands while the condition persists. The integration does not physically empty the tank or necessarily switch off the plug; the device is expected to stop its own dehumidification cycle. The detection state is cleared when measured power recovers or the plug is switched off.
+When the plug is on and measured power remains **below** the configured minimum-power threshold for the configured timeout, the status becomes **Full**. Low consumption is only an indication; it may have other causes. Evaluation occurs on coordinator updates, so detection may take longer than the timeout. A sensor outage or restart interrupts the low-power observation timer. The integration does not necessarily switch off the plug; the device is expected to stop its own dehumidification cycle. The detection state is cleared when measured power recovers or the plug is switched off. A notification is sent only on entry into a newly detected full state, not on every update; delivery is best-effort.
 
 ## Upgrading to v1.1.0
 
@@ -73,7 +77,9 @@ After upgrading, open **Configure** to inspect the migrated settings and optiona
 
 **Can I change the plug or sensors?** Yes. Open **Configure** and select the replacement entities.
 
-**What if a sensor becomes unavailable?** The coordinator reports an update failure rather than issuing new automatic commands based on an invalid reading.
+**What if the plug or a sensor becomes unavailable?** The integration remains loaded, while the control switch and status sensor become unavailable. No automatic commands are issued while a required reading is invalid. In particular, an already-on plug may remain on beyond its schedule until readings recover. The integration retries automatically; the log identifies the failing dependency or reading. When readings return, control resumes using the restored automatic-control setting.
+
+**Will the integration notify me immediately?** Detection is based on periodic updates, not a real-time timer. Mobile app notifications must be enabled and recipients selected in Configure; they are off by default.
 
 ## Development and tests
 

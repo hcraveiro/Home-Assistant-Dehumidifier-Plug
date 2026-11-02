@@ -54,6 +54,35 @@ def valid_schedule(data):
     )
 
 
+def validation_errors(data):
+    """Validate relationships between configuration values."""
+    if not valid_schedule(data):
+        return {"base": "invalid_schedule"}
+    if data.get(CONF_HUMIDITY_OFF, DEFAULT_HUMIDITY_OFF) >= data.get(CONF_HUMIDITY_ON, DEFAULT_HUMIDITY_ON):
+        return {"base": "invalid_humidity_thresholds"}
+    targets = data.get("notification_targets", [])
+    if data.get("notifications_enabled") and not targets:
+        return {"base": "no_targets"}
+    if any(not isinstance(target, str) or not target.startswith("notify.mobile_app_") for target in targets):
+        return {"base": "invalid_targets"}
+    return {}
+
+
+def notification_fields(data, hass):
+    """Offer mobile app notification services, including saved offline recipients."""
+    targets = data.get("notification_targets", [])
+    services = hass.services.async_services().get("notify", {})
+    choices = {f"notify.{name}" for name in services if name.startswith("mobile_app_")}
+    choices.update(target for target in targets if isinstance(target, str) and target.startswith("notify.mobile_app_"))
+    return {
+        vol.Required("full_timeout", default=data.get("full_timeout", 60)):
+            selector.NumberSelector(selector.NumberSelectorConfig(min=1, max=86400, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)),
+        vol.Required("notifications_enabled", default=data.get("notifications_enabled", False)): bool,
+        vol.Optional("notification_targets", default=targets): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=sorted(choices), multiple=True, mode=selector.SelectSelectorMode.DROPDOWN)),
+    }
+
+
 def entity_field(key, data, domain):
     """Allow recovering legacy entries with missing entity IDs."""
     entity = selector.EntitySelector(selector.EntitySelectorConfig(domain=domain))
@@ -87,18 +116,20 @@ class DehumidifierConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return DehumidifierOptionsFlowHandler(config_entry)
 
     async def async_step_user(self, user_input=None):
-        if user_input is not None and valid_schedule(user_input):
+        errors = validation_errors(user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
             return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
 
         return self.async_show_form(
             step_id="user",
-            errors={"base": "invalid_schedule"} if user_input is not None else {},
+            errors=errors,
             data_schema=vol.Schema({
                 vol.Required(CONF_NAME): selector.TextSelector(),
                 **entity_field(CONF_SWITCH, user_input or {}, "switch"),
                 **entity_field(CONF_POWER, user_input or {}, "sensor"),
                 **entity_field(CONF_HUMIDITY, user_input or {}, "sensor"),
                 **threshold_fields(user_input or {}),
+                **notification_fields(user_input or {}, self.hass),
                 **schedule_fields(user_input or {}),
             }),
         )
@@ -109,7 +140,8 @@ class DehumidifierOptionsFlowHandler(config_entries.OptionsFlow):
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
-        if user_input is not None and valid_schedule(user_input):
+        errors = validation_errors(user_input) if user_input is not None else {}
+        if user_input is not None and not errors:
             return self.async_create_entry(title="", data=user_input)
 
         data = {
@@ -119,12 +151,13 @@ class DehumidifierOptionsFlowHandler(config_entries.OptionsFlow):
         }
         return self.async_show_form(
             step_id="init",
-            errors={"base": "invalid_schedule"} if user_input is not None else {},
+            errors=errors,
             data_schema=vol.Schema({
                 **entity_field(CONF_SWITCH, data, "switch"),
                 **entity_field(CONF_POWER, data, "sensor"),
                 **entity_field(CONF_HUMIDITY, data, "sensor"),
                 **threshold_fields(data),
+                **notification_fields(data, self.hass),
                 **schedule_fields(data),
             }),
         )

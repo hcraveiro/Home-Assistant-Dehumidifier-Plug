@@ -45,7 +45,7 @@ class FormContractTests(unittest.TestCase):
         code = (BASE / "__init__.py").read_text()
         self.assertLess(
             code.index("entry.add_update_listener(update_listener)"),
-            code.index("coordinator.async_config_entry_first_refresh()"),
+            code.index("coordinator.async_refresh()"),
         )
 
 

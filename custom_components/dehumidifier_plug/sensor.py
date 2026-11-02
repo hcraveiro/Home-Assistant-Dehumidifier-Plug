@@ -52,11 +52,22 @@ class DehumidifierSensor(SensorEntity):
             return "Full"
         if data.get("is_on") or data.get("manual_override"):
             return "Dehumidifying"
+        if data.get("auto_enabled") is False:
+            return "Automatic control disabled"
         if not data.get("inside_schedule"):
             return "Outside dehumidifying hours"
         if data.get("humidity_low"):
             return "Below target humidity"
         return "Idle"
+
+    @property
+    def extra_state_attributes(self):
+        """Expose the separate control decisions without changing legacy states."""
+        data = self.coordinator.data or {}
+        return {key: data.get(key) for key in (
+            "auto_enabled", "inside_schedule", "humidity_low", "humidity_high",
+            "manual_override", "is_full", "is_on",
+        )}
 
     @property
     def available(self):

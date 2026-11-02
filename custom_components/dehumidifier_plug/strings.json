@@ -14,16 +14,23 @@
           "humidity_on_threshold": "Upper Humidity Limit (%)",
           "humidity_off_threshold": "Lower Humidity Limit (%)",
           "weekdays": "Days of the week",
-          "time_windows": "Operating intervals"
+          "time_windows": "Operating intervals",
+          "full_timeout": "Low-power timeout (seconds)",
+          "notifications_enabled": "Notify when the tank may be full",
+          "notification_targets": "Notification recipients"
         },
         "data_description": {
           "time_windows": "Add or remove operating intervals. Overnight intervals continue into the next day.",
-          "weekdays": "Select the days when automatic dehumidification is allowed."
+          "weekdays": "Select the days when automatic dehumidification is allowed.",
+          "full_timeout": "Time that power must remain below the threshold while the plug is on."
         }
       }
     },
     "error": {
-      "invalid_schedule": "Add at least one complete time interval."
+      "invalid_schedule": "Add at least one complete time interval.",
+      "invalid_humidity_thresholds": "The lower humidity limit must be below the upper limit.",
+      "no_targets": "Select at least one notification recipient.",
+      "invalid_targets": "Select mobile app notification recipients."
     }
   },
   "options": {
@@ -38,16 +45,26 @@
           "humidity_sensor": "Humidity Sensor",
           "full_power_threshold": "Minimum Power Threshold (W)",
           "weekdays": "Days of the week",
-          "time_windows": "Operating intervals"
+          "time_windows": "Operating intervals",
+          "full_timeout": "Low-power timeout (seconds)",
+          "notifications_enabled": "Notify when the tank may be full",
+          "notification_targets": "Notification recipients"
         },
         "data_description": {
           "time_windows": "Add or remove operating intervals. Overnight intervals continue into the next day.",
-          "weekdays": "Select the days when automatic dehumidification is allowed."
+          "weekdays": "Select the days when automatic dehumidification is allowed.",
+          "full_timeout": "Time that power must remain below the threshold while the plug is on."
         }
       }
     },
     "error": {
-      "invalid_schedule": "Add at least one complete time interval."
+      "invalid_schedule": "Add at least one complete time interval.",
+      "invalid_humidity_thresholds": "The lower humidity limit must be below the upper limit.",
+      "no_targets": "Select at least one notification recipient.",
+      "invalid_targets": "Select mobile app notification recipients."
     }
+  },
+  "common": {
+    "possible_full": "{name}: the water tank may be full"
   }
 }

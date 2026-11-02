@@ -1,0 +1,70 @@
+{
+  "title": "Dehumidifier Plug",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurar desumidificador",
+        "description": "Configura a tomada e os sensores",
+        "data": {
+          "name": "Nome",
+          "switch_entity": "Tomada",
+          "power_sensor": "Sensor de potência",
+          "humidity_sensor": "Sensor de humidade",
+          "full_power_threshold": "Limiar mínimo de potência (W)",
+          "humidity_on_threshold": "Limite superior de humidade (%)",
+          "humidity_off_threshold": "Limite inferior de humidade (%)",
+          "weekdays": "Dias da semana",
+          "time_windows": "Intervalos de funcionamento",
+          "full_timeout": "Tempo de baixa potência (segundos)",
+          "notifications_enabled": "Notificar quando o depósito possa estar cheio",
+          "notification_targets": "Destinatários das notificações"
+        },
+        "data_description": {
+          "time_windows": "Adiciona ou remove intervalos. Os intervalos que atravessam a meia-noite continuam no dia seguinte.",
+          "weekdays": "Seleciona os dias em que o funcionamento automático é permitido.",
+          "full_timeout": "Tempo durante o qual a potência deve permanecer abaixo do limiar com a tomada ligada."
+        }
+      }
+    },
+    "error": {
+      "invalid_schedule": "Adiciona pelo menos um intervalo completo.",
+      "invalid_humidity_thresholds": "O limite inferior de humidade tem de ser inferior ao limite superior.",
+      "no_targets": "Seleciona pelo menos um destinatário.",
+      "invalid_targets": "Seleciona destinatários da aplicação móvel."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções do desumidificador",
+        "data": {
+          "humidity_on_threshold": "Limite superior de humidade (%)",
+          "humidity_off_threshold": "Limite inferior de humidade (%)",
+          "switch_entity": "Tomada",
+          "power_sensor": "Sensor de potência",
+          "humidity_sensor": "Sensor de humidade",
+          "full_power_threshold": "Limiar mínimo de potência (W)",
+          "weekdays": "Dias da semana",
+          "time_windows": "Intervalos de funcionamento",
+          "full_timeout": "Tempo de baixa potência (segundos)",
+          "notifications_enabled": "Notificar quando o depósito possa estar cheio",
+          "notification_targets": "Destinatários das notificações"
+        },
+        "data_description": {
+          "time_windows": "Adiciona ou remove intervalos. Os intervalos que atravessam a meia-noite continuam no dia seguinte.",
+          "weekdays": "Seleciona os dias em que o funcionamento automático é permitido.",
+          "full_timeout": "Tempo durante o qual a potência deve permanecer abaixo do limiar com a tomada ligada."
+        }
+      }
+    },
+    "error": {
+      "invalid_schedule": "Adiciona pelo menos um intervalo completo.",
+      "invalid_humidity_thresholds": "O limite inferior de humidade tem de ser inferior ao limite superior.",
+      "no_targets": "Seleciona pelo menos um destinatário.",
+      "invalid_targets": "Seleciona destinatários da aplicação móvel."
+    }
+  },
+  "common": {
+    "possible_full": "{name}: o depósito de água pode estar cheio"
+  }
+}

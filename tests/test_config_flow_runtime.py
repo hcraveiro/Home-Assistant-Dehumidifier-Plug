@@ -14,6 +14,7 @@ def module(name):
     return sys.modules.setdefault(name, types.ModuleType(name))
 
 class FakeConfigFlow:
+    hass = SimpleNamespace(services=SimpleNamespace(async_services=lambda: {}))
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__()
     def async_create_entry(self, **kwargs):
@@ -87,6 +88,15 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(output["errors"]["base"], "invalid_schedule")
 
+    async def test_humidity_limits_and_notification_recipients_validated(self):
+        obj = flow.DehumidifierConfigFlow()
+        output = await obj.async_step_user({**valid, "humidity_off_threshold": 60})
+        self.assertEqual(output["errors"]["base"], "invalid_humidity_thresholds")
+        output = await obj.async_step_user({**valid, "notifications_enabled": True, "notification_targets": []})
+        self.assertEqual(output["errors"]["base"], "no_targets")
+        output = await obj.async_step_user({**valid, "notification_targets": ["notify.invalid"]})
+        self.assertEqual(output["errors"]["base"], "invalid_targets")
+
     async def test_incomplete_window_rejected(self):
         output = await flow.DehumidifierConfigFlow().async_step_user(
             {**valid, "time_windows": [{"start": "10:00"}]}
@@ -96,7 +106,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
     async def test_initial_form_has_dynamic_intervals(self):
         output = await flow.DehumidifierConfigFlow().async_step_user()
         self.assertEqual(output["type"], "form")
-        self.assertEqual(len(output["data_schema"].schema), 9)
+        self.assertEqual(len(output["data_schema"].schema), 12)
 
     async def test_options_factory_accepts_config_entry(self):
         entry = SimpleNamespace(data=legacy, options={})

@@ -35,7 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     config = DehumidifierConfig.from_dict(data)
     coordinator = DehumidifierCoordinator(hass, config)
-    await coordinator.async_config_entry_first_refresh()
+    await coordinator.load_persistent_data()
 
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
@@ -45,6 +45,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # An unavailable dependency must not prevent the entry and its controls
+    # from loading; the regular coordinator refresh will retry automatically.
+    await coordinator.async_refresh()
     return True
 
 
@@ -59,4 +62,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
     """Trigger reload when options are changed."""
     await hass.config_entries.async_reload(entry.entry_id)
-

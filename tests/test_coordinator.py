@@ -76,11 +76,13 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.unit._last_switch_state = switch
         self.unit._auto_turning_on = False
         self.unit._is_full_latched = False
+        self.unit._auto_control_enabled = True
+        self.unit.auto_control = SimpleNamespace(is_on=auto == "on", ready=True)
         self.unit.save_persistent_data = AsyncMock()
         states = {
             "switch.plug": SimpleNamespace(state=switch),
-            "sensor.power": SimpleNamespace(state=power),
-            "sensor.humidity": SimpleNamespace(state=humidity),
+            "sensor.power": SimpleNamespace(state=power, attributes={}),
+            "sensor.humidity": SimpleNamespace(state=humidity, attributes={}),
             "switch.test_control": SimpleNamespace(state=auto),
         }
         self.unit.hass = SimpleNamespace(
@@ -220,6 +222,110 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         del states["sensor.power"]
         with self.assertRaises(coordinator.UpdateFailed):
             await self.unit._async_update_data()
+
+    async def test_unavailable_plug_does_not_send_command_and_recovers(self):
+        states = self.create(switch="unavailable")
+        with self.assertRaises(coordinator.UpdateFailed):
+            await self.unit._async_update_data()
+        self.assertIn("switch.plug", self.unit.unavailable_reason)
+        self.unit.hass.services.async_call.assert_not_awaited()
+        states["switch.plug"].state = "off"
+        await self.unit._async_update_data()
+        self.assertIsNone(self.unit.unavailable_reason)
+        self.unit.hass.services.async_call.assert_awaited_once()
+
+    async def test_control_reference_does_not_depend_on_entity_id(self):
+        states = self.create()
+        del states["switch.test_control"]
+        await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_awaited_once()
+
+    async def test_control_not_used_until_restored(self):
+        self.create()
+        self.unit.auto_control.ready = False
+        await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_timeout_is_configurable(self):
+        self.create(switch="on", power="0")
+        self.unit.config.full_timeout = 120
+        self.unit._power_low_since = dt.utcnow() - timedelta(seconds=61)
+        self.assertFalse((await self.unit._async_update_data())["is_full"])
+        self.unit._power_low_since = dt.utcnow() - timedelta(seconds=120)
+        self.assertTrue((await self.unit._async_update_data())["is_full"])
+
+    async def test_sensor_gap_resets_pending_full_timer(self):
+        states = self.create(switch="on", power="unavailable")
+        self.unit._power_low_since = dt.utcnow() - timedelta(seconds=30)
+        with self.assertRaises(coordinator.UpdateFailed):
+            await self.unit._async_update_data()
+        self.assertIsNone(self.unit._power_low_since)
+        states["sensor.power"].state = "0"
+        self.assertFalse((await self.unit._async_update_data())["is_full"])
+
+    async def test_nonfinite_value_is_rejected(self):
+        self.create(humidity="nan")
+        with self.assertRaises(coordinator.UpdateFailed):
+            await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_invalid_switch_state_is_not_treated_as_off(self):
+        self.create(switch="unexpected")
+        with self.assertRaises(coordinator.UpdateFailed):
+            await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_power_in_kw_is_converted(self):
+        states = self.create(switch="on", power="0.15", humidity="55")
+        states["sensor.power"].attributes["unit_of_measurement"] = "kW"
+        data = await self.unit._async_update_data()
+        self.assertFalse(data["is_full"])
+        self.assertIsNone(self.unit._power_low_since)
+
+    async def test_full_notification_only_once_per_latch(self):
+        self.create(switch="on", power="0")
+        self.unit.config.notifications_enabled = True
+        self.unit._notify_full = AsyncMock()
+        self.unit.hass.async_create_task = lambda coro: asyncio.create_task(coro)
+        self.unit._power_low_since = dt.utcnow() - timedelta(seconds=60)
+        await self.unit._async_update_data()
+        await asyncio.sleep(0)
+        await self.unit._async_update_data()
+        self.unit._notify_full.assert_awaited_once()
+
+    async def test_notification_delivers_to_unique_mobile_targets(self):
+        self.create()
+        translation = types.ModuleType("homeassistant.helpers.translation")
+        translation.async_get_translations = AsyncMock(return_value={
+            "component.dehumidifier_plug.common.possible_full": "{name} may be full"})
+        sys.modules[translation.__name__] = translation
+        self.unit.hass.config = SimpleNamespace(language="en")
+        self.unit.config.notification_targets = ["notify.mobile_app_phone", "notify.mobile_app_phone", "notify.bad"]
+        await self.unit._notify_full()
+        self.unit.hass.services.async_call.assert_awaited_once_with(
+            "notify", "mobile_app_phone", {"message": "Test may be full"}, blocking=True)
+
+    async def test_notification_falls_back_and_continues_after_failure(self):
+        self.create()
+        translation = types.ModuleType("homeassistant.helpers.translation")
+        translation.async_get_translations = AsyncMock(return_value={})
+        sys.modules[translation.__name__] = translation
+        self.unit.hass.config = SimpleNamespace(language="en")
+        self.unit.config.notification_targets = ["notify.mobile_app_a", "notify.mobile_app_b"]
+        self.unit.hass.services.async_call.side_effect = [RuntimeError("offline"), None]
+        await self.unit._notify_full()
+        self.assertEqual(self.unit.hass.services.async_call.await_count, 2)
+
+    async def test_load_restores_latch_but_does_not_count_downtime(self):
+        self.create()
+        self.unit.storage = SimpleNamespace(async_load=AsyncMock(return_value={
+            "power_low_since": "2026-01-01T00:00:00+00:00",
+            "manual_override": True, "last_switch_state": "on", "is_full_latched": True,
+        }))
+        await self.unit.load_persistent_data()
+        self.assertIsNone(self.unit._power_low_since)
+        self.assertTrue(self.unit._is_full_latched)
+        self.assertTrue(self.unit._manual_override)
 
 if __name__ == "__main__":
     unittest.main()

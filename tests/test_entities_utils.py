@@ -129,22 +129,24 @@ class StatusSensorTests(unittest.IsolatedAsyncioTestCase):
 
 class ControlSwitchTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.coordinator = SimpleNamespace(config=SimpleNamespace(name="Test"))
+        self.coordinator = SimpleNamespace(config=SimpleNamespace(name="Test"), async_add_listener=Mock(), async_request_refresh=AsyncMock(), _auto_control_enabled=None, save_persistent_data=AsyncMock())
         self.entity = switch.DehumidifierAutoControlSwitch(
             self.coordinator, {("plug", "1")}
         )
         self.entity.schedule_update_ha_state = Mock()
+        self.entity.async_on_remove = Mock()
+        self.entity.async_write_ha_state = Mock()
 
     def test_control_switch_defaults_to_on(self):
         self.assertTrue(self.entity.is_on)
         self.assertEqual(self.entity.device_info["identifiers"], {("plug", "1")})
 
-    def test_turn_off_and_on(self):
-        self.entity.turn_off()
+    async def test_turn_off_and_on(self):
+        await self.entity.async_turn_off()
         self.assertFalse(self.entity.is_on)
-        self.entity.turn_on()
+        await self.entity.async_turn_on()
         self.assertTrue(self.entity.is_on)
-        self.assertEqual(self.entity.schedule_update_ha_state.call_count, 2)
+        self.assertEqual(self.entity.async_write_ha_state.call_count, 2)
 
     async def test_restore_off(self):
         self.entity.async_get_last_state = AsyncMock(return_value=SimpleNamespace(state="off"))

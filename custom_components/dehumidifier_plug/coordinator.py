@@ -1,4 +1,5 @@
 from datetime import timedelta
+import math
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.entity_component import DEFAULT_SCAN_INTERVAL
@@ -24,6 +25,8 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
         self._last_switch_state = None
         self._auto_turning_on = False
         self._is_full_latched = False
+        self._auto_control_enabled = None
+        self.unavailable_reason = None
 
         super().__init__(
             hass,
@@ -32,7 +35,8 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             update_interval=DEFAULT_SCAN_INTERVAL,
         )
 
-        hass.loop.create_task(self.load_persistent_data())
+        # Restored before the first refresh by async_setup_entry.
+        self.auto_control = None
 
     async def _async_update_data(self):
         try:
@@ -41,19 +45,31 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             state_humidity = self.hass.states.get(self.config.humidity_sensor)
 
             if not state_switch or not state_power or not state_humidity:
-                raise UpdateFailed("Missing one or more entity states")
+                missing = [entity for entity, state in ((self.config.switch_entity, state_switch), (self.config.power_sensor, state_power), (self.config.humidity_sensor, state_humidity)) if not state]
+                raise UpdateFailed(f"Missing entity states: {', '.join(missing)}")
 
-            if state_power.state in ("unavailable", "unknown") or state_humidity.state in ("unavailable", "unknown"):
-                raise UpdateFailed("Power or humidity sensor is unavailable")
+            unavailable = [entity for entity, state in ((self.config.switch_entity, state_switch), (self.config.power_sensor, state_power), (self.config.humidity_sensor, state_humidity)) if state.state in ("unavailable", "unknown")]
+            if unavailable:
+                raise UpdateFailed(f"Unavailable entities: {', '.join(unavailable)}")
+            if state_switch.state not in ("on", "off"):
+                raise UpdateFailed(f"Invalid switch state: {self.config.switch_entity}={state_switch.state}")
 
-            auto_switch_id = f"switch.{slugify(f'{self.config.name}_control')}"
-            state_auto = self.hass.states.get(auto_switch_id)
-            auto_enabled = state_auto and state_auto.state == "on"
-            _LOGGER.debug(f"{self.config.name} - Found auto switch entity: {auto_switch_id} with state: {state_auto.state if state_auto else 'Not found'}")
+            auto_control = getattr(self, "auto_control", None)
+            auto_enabled = auto_control is not None and auto_control.ready and auto_control.is_on
 
             is_on = state_switch.state == "on"
             power = float(state_power.state)
             humidity = float(state_humidity.state)
+            if not math.isfinite(power) or not math.isfinite(humidity) or not 0 <= humidity <= 100:
+                raise UpdateFailed("Invalid power or humidity reading")
+            power_unit = state_power.attributes.get("unit_of_measurement")
+            humidity_unit = state_humidity.attributes.get("unit_of_measurement")
+            if power_unit == "kW":
+                power *= 1000
+            elif power_unit not in (None, "W"):
+                raise UpdateFailed(f"Unsupported power unit: {power_unit}")
+            if humidity_unit not in (None, "%"):
+                raise UpdateFailed(f"Unsupported humidity unit: {humidity_unit}")
 
             now_utc = dt_util.utcnow()
             inside_schedule = is_in_schedule(
@@ -86,8 +102,8 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             else:
                 if self._power_low_since:
                     _LOGGER.debug(f"{self.config.name} - Power no longer low. Clearing full timer.")
-                self._power_low_since = None
-                await self.save_persistent_data()
+                    self._power_low_since = None
+                    await self.save_persistent_data()
                 if self._is_full_latched:
                     _LOGGER.debug(f"{self.config.name} - Tank no longer full. Clearing latched full state.")
                     self._is_full_latched = False
@@ -95,12 +111,14 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
 
             if self._power_low_since:
                 elapsed = now_utc - self._power_low_since
-                if elapsed >= timedelta(seconds=60):
+                if elapsed >= timedelta(seconds=self.config.full_timeout):
                     is_full = True
                     if not self._is_full_latched:
                         _LOGGER.debug(f"{self.config.name} - Power has been low for {elapsed}. Marking as full and latching.")
                         self._is_full_latched = True
                         await self.save_persistent_data()
+                        if self.config.notifications_enabled:
+                            self.hass.async_create_task(self._notify_full())
                 else:
                     _LOGGER.debug(f"{self.config.name} - Power low for {elapsed.total_seconds():.0f}s but threshold not yet met.")
 
@@ -150,6 +168,12 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                 f"is_full={is_full}"
             )
 
+            # Refresh the observed switch state after any command. The
+            # service may have completed without the device reporting yet.
+            latest_switch = self.hass.states.get(self.config.switch_entity)
+            if latest_switch and latest_switch.state in ("on", "off"):
+                is_on = latest_switch.state == "on"
+            self.unavailable_reason = None
             return {
                 "is_on": is_on,
                 "is_full": is_full,
@@ -157,10 +181,36 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                 "humidity_low": humidity_low,
                 "humidity_high": humidity_high,
                 "manual_override": self._manual_override,
+                "auto_enabled": auto_enabled,
             }
 
         except Exception as e:
+            self.unavailable_reason = str(e)
+            # An observation gap cannot prove that low power was continuous.
+            if self._power_low_since is not None and not self._is_full_latched:
+                self._power_low_since = None
+                await self.save_persistent_data()
             raise UpdateFailed(f"Error updating dehumidifier data: {e}")
+
+    async def _notify_full(self):
+        """Notify each mobile app once on entry into the possible-full state."""
+        from homeassistant.helpers.translation import async_get_translations
+
+        try:
+            translations = await async_get_translations(
+                self.hass, self.hass.config.language or "en", "common", {DOMAIN}
+            )
+            message = translations[f"component.{DOMAIN}.common.possible_full"].format(name=self.config.name)
+        except (KeyError, ValueError, TypeError):
+            message = f"{self.config.name}: the water tank may be full"
+        for target in dict.fromkeys(self.config.notification_targets):
+            if not isinstance(target, str) or not target.startswith("notify.mobile_app_"):
+                _LOGGER.warning("Invalid notification recipient %s", target)
+                continue
+            try:
+                await self.hass.services.async_call("notify", target.removeprefix("notify."), {"message": message}, blocking=True)
+            except Exception:
+                _LOGGER.exception("Could not notify %s about %s", target, self.config.name)
 
     async def load_persistent_data(self):
         data = await self.storage.async_load()
@@ -170,10 +220,12 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
 
         # NOTE: Defensive parsing. Values might be None/empty or even already datetime.
         self._last_auto_on = _safe_parse_dt(data.get("last_auto_on"))
-        self._power_low_since = _safe_parse_dt(data.get("power_low_since"))
+        # Do not count downtime towards a continuous low-power observation.
+        self._power_low_since = None
         self._manual_override = bool(data.get("manual_override", False))
         self._last_switch_state = data.get("last_switch_state", None)
         self._is_full_latched = bool(data.get("is_full_latched", False))
+        self._auto_control_enabled = data.get("auto_control_enabled")
 
         _LOGGER.debug(
             "%s - Loaded persistent: last_auto_on=%s, power_low_since=%s, manual_override=%s, "
@@ -194,6 +246,7 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                 "manual_override": self._manual_override,
                 "last_switch_state": self._last_switch_state,
                 "is_full_latched": self._is_full_latched,
+                "auto_control_enabled": self._auto_control_enabled,
             })
         except Exception as err:
             _LOGGER.warning("%s - Failed to save persistent data: %s", self.config.name, err)

@@ -1,5 +1,5 @@
 """Dehumidifier configuration, including legacy migration."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import time
 
 from .const import (
@@ -31,6 +31,9 @@ class DehumidifierConfig:
     humidity_off_threshold: float
     weekdays: list[str]
     time_windows: list[tuple[time, time]]
+    full_timeout: int = 60
+    notifications_enabled: bool = False
+    notification_targets: list[str] = field(default_factory=list)
 
     @staticmethod
     def from_dict(data: dict) -> "DehumidifierConfig":
@@ -50,4 +53,7 @@ class DehumidifierConfig:
             humidity_off_threshold=float(data.get(CONF_HUMIDITY_OFF, DEFAULT_HUMIDITY_OFF)),
             weekdays=data.get(CONF_WEEKDAYS, DEFAULT_WEEKDAYS),
             time_windows=[(parse_time(w["start"]), parse_time(w["end"])) for w in windows],
+            full_timeout=int(data.get("full_timeout", 60)),
+            notifications_enabled=data.get("notifications_enabled", False),
+            notification_targets=data.get("notification_targets", []),
         )

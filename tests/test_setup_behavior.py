@@ -69,7 +69,8 @@ class SetupTests(unittest.IsolatedAsyncioTestCase):
         entry.options = {"power_sensor": "sensor.new", "weekdays": ["mon"],
                          "time_windows": [{"start": "11:00", "end": "12:00"}]}
         with patch.object(self.module, "DehumidifierCoordinator") as factory:
-            factory.return_value.async_config_entry_first_refresh = AsyncMock()
+            factory.return_value.load_persistent_data = AsyncMock()
+            factory.return_value.async_refresh = AsyncMock()
             self.assertTrue(await self.module.async_setup_entry(hass, entry))
             self.assertEqual(factory.call_args.args[1].power_sensor, "sensor.new")
             self.assertEqual(factory.call_args.args[1].weekdays, ["mon"])
@@ -87,7 +88,8 @@ class SetupTests(unittest.IsolatedAsyncioTestCase):
         hass, entry = self.entry()
         entry.options = {"power_sensor": None}
         with patch.object(self.module, "DehumidifierCoordinator") as factory:
-            factory.return_value.async_config_entry_first_refresh = AsyncMock()
+            factory.return_value.load_persistent_data = AsyncMock()
+            factory.return_value.async_refresh = AsyncMock()
             await self.module.async_setup_entry(hass, entry)
             self.assertEqual(factory.call_args.args[1].power_sensor, "sensor.power")
 

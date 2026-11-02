@@ -64,7 +64,7 @@ class SetupTests(unittest.IsolatedAsyncioTestCase):
                 async_reload=AsyncMock(),
             ),
         )
-        self.coord = SimpleNamespace(async_config_entry_first_refresh=AsyncMock())
+        self.coord = SimpleNamespace(load_persistent_data=AsyncMock(), async_refresh=AsyncMock())
         fake_coordinator.DehumidifierCoordinator.return_value = self.coord
 
     async def test_setup_starts_and_forwards(self):
