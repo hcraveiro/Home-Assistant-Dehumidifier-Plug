@@ -7,6 +7,7 @@ from .const import (
     CONF_START_TIME, CONF_END_TIME, DEFAULT_START_TIME, DEFAULT_END_TIME,
     CONF_FULL_THRESHOLD, CONF_HUMIDITY_ON, CONF_HUMIDITY_OFF,
     DEFAULT_FULL_THRESHOLD, DEFAULT_HUMIDITY_ON, DEFAULT_HUMIDITY_OFF,
+    CONF_WINDOW_SENSORS,
 )
 
 
@@ -34,6 +35,7 @@ class DehumidifierConfig:
     full_timeout: int = 60
     notifications_enabled: bool = False
     notification_targets: list[str] = field(default_factory=list)
+    window_sensors: list[str] = field(default_factory=list)
 
     @staticmethod
     def from_dict(data: dict) -> "DehumidifierConfig":
@@ -56,4 +58,5 @@ class DehumidifierConfig:
             full_timeout=int(data.get("full_timeout", 60)),
             notifications_enabled=data.get("notifications_enabled", False),
             notification_targets=data.get("notification_targets", []),
+            window_sensors=data.get(CONF_WINDOW_SENSORS, []),
         )
