@@ -101,7 +101,7 @@ def threshold_fields(data):
         vol.Required(CONF_HUMIDITY_ON, default=data.get(CONF_HUMIDITY_ON, DEFAULT_HUMIDITY_ON)):
             selector.NumberSelector(selector.NumberSelectorConfig(
                 min=0, max=100, step=1, unit_of_measurement="%", mode=selector.NumberSelectorMode.BOX)),
-        vol.Required(CONF_HUMIDITY_OFF, default=data.get(CONF_HUMIDITY_OFF, DEFAULT_HUMIDIDY_OFF if 'DEFAULT_HUMIDITY_OFF' in globals() else 45)): # Fallback 
+        vol.Required(CONF_HUMIDITY_OFF, default=data.get(CONF_HUMIDITY_OFF, DEFAULT_HUMIDITY_OFF)):
             selector.NumberSelector(selector.NumberSelectorConfig(
                 min=0, max=100, step=1, unit_of_measurement="%", mode=selector.NumberSelectorMode.BOX)),
     }
