@@ -49,6 +49,7 @@
           "full_timeout": "Tempo de baixa potência (segundos)",
           "notifications_enabled": "Notificar quando o depósito possa estar cheio",
           "notification_targets": "Destinatários das notificações"
+          "window_sensors": "Janela"
         },
         "data_description": {
           "time_windows": "Adiciona ou remove intervalos. Os intervalos que atravessam a meia-noite continuam no dia seguinte.",
