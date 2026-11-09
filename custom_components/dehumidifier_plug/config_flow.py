@@ -116,6 +116,7 @@ def window_sensor_fields(data):
         ): selector.EntitySelector(
             selector.EntitySelectorConfig(
                 domain="binary_sensor",
+                device_class=["opening", "window", "door"],
                 multiple=True,
             )
         ),

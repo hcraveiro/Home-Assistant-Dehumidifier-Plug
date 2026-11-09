@@ -37,6 +37,19 @@ The lower limit must be strictly below the upper limit. Readings must be numeric
 
 The schedule restricts **automatic** operation. Humidity thresholds, the automatic-control switch, full-tank detection and manual-override behavior also influence whether the plug is turned on or off. Manually enabled operation may be retained outside scheduled hours under the existing override rules.
 
+### Optional window and door interlock
+
+Select one or more **Window sensors** in setup or Configure. The selector accepts binary sensors with the **opening**, **window**, or **door** device class. No sensors are selected by default; clearing the list in Options removes the interlock.
+
+- Any known open sensor (`on`, or `open`) blocks automatic starts and turns off an observed running plug while automatic control is enabled. Multiple sensors use **any-open** logic; all must be known closed (`off`, or `closed`) before normal control resumes.
+- An open sensor takes priority even if another window sensor is missing, unknown, unavailable, or invalid. It also takes priority over manual starts, scheduled hours, and full-tank status. A manual start while automatic control is enabled will therefore be stopped again on the next update.
+- If no sensor is known open and any selected sensor is missing, unknown, unavailable, or invalid, the update fails and automatic commands pause under the normal dependency-fault policy. An already-running plug may remain on. The integration retries automatically.
+- A known open sensor can still stop a positively observed running plug when a power or humidity dependency has failed. The update then remains failed/unavailable until those dependencies recover. An unknown or unavailable plug state cannot safely be controlled.
+- With **automatic control disabled** (or not yet restored at startup), the integration sends no commands, including window-related stops. Window observations remain available as attributes when readings are valid.
+- Closing windows does **not** restore an interrupted cycle. Normal start conditions apply: inside the schedule, automatic control enabled, no full-tank block, and humidity strictly above the upper limit. With the default 50%/60% limits, a cycle interrupted at **55% stays off** after closing, including at exactly 60%, until humidity exceeds 60%.
+
+Window changes are checked by periodic coordinator polling (Home Assistant's default scan interval, normally **30 seconds**), not immediate state-change listeners. Allow up to a polling interval plus scheduling, service and device-reporting delays; outages can extend this further. This is a convenience interlock, not a safety mechanism. Service completion does not guarantee immediate device feedback.
+
 ### Editing an existing installation
 
 Go to **Settings → Devices & Services → Dehumidifier Plug → Configure**.
@@ -49,7 +62,7 @@ Saving Options triggers a reload of that configuration entry. If a previous conf
 
 Each configured dehumidifier creates:
 
-- `sensor.<name>_status` — displays **Full**, **Dehumidifying**, **Automatic control disabled**, **Outside dehumidifying hours**, **Below target humidity**, or **Idle**. Its attributes expose the control decisions independently.
+- `sensor.<name>_status` — displays **Window open**, **Full**, **Dehumidifying**, **Automatic control disabled**, **Outside dehumidifying hours**, **Below target humidity**, or **Idle**. Its attributes expose the control decisions independently, including `windows_open`. **Window open** has highest status priority when automatic control is enabled, even if a stop is awaiting device feedback; otherwise the existing Full → Dehumidifying → Automatic control disabled → Outside hours → Below target → Idle priority applies. Failed updates make the entity unavailable rather than presenting stale decisions as healthy.
 - `switch.<name>_control` — enables or disables automatic dehumidifier control. Its state is restored after a Home Assistant restart when a previous state is available.
 
 Entity IDs are derived from the configured name and may differ when Home Assistant resolves naming collisions or existing registry entries.
@@ -77,7 +90,7 @@ After upgrading, open **Configure** to inspect the migrated settings and optiona
 
 **Can I change the plug or sensors?** Yes. Open **Configure** and select the replacement entities.
 
-**What if the plug or a sensor becomes unavailable?** The integration remains loaded, while the control switch and status sensor become unavailable. No automatic commands are issued while a required reading is invalid. In particular, an already-on plug may remain on beyond its schedule until readings recover. The integration retries automatically; the log identifies the failing dependency or reading. When readings return, control resumes using the restored automatic-control setting.
+**What if the plug or a sensor becomes unavailable?** The integration remains loaded, while the control switch and status sensor become unavailable. No automatic commands are issued while a required reading is invalid, except that a known open window can stop a positively observed running plug with automatic control enabled (see the interlock policy above). In particular, an already-on plug may remain on beyond its schedule until readings recover. The integration retries automatically; the log identifies the failing dependency or reading. When readings return, control resumes using the restored automatic-control setting.
 
 **Will the integration notify me immediately?** Detection is based on periodic updates, not a real-time timer. Mobile app notifications must be enabled and recipients selected in Configure; they are off by default.
 

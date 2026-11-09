@@ -18,7 +18,7 @@
           "full_timeout": "Low-power timeout (seconds)",
           "notifications_enabled": "Notify when the tank may be full",
           "notification_targets": "Notification recipients",
-          "window_sensors": "Optional window detection"
+          "window_sensors": "Window sensors"
         },
         "data_description": {
           "time_windows": "Add or remove operating intervals. Overnight intervals continue into the next day.",
@@ -51,7 +51,7 @@
           "full_timeout": "Low-power timeout (seconds)",
           "notifications_enabled": "Notify when the tank may be full",
           "notification_targets": "Notification recipients",
-          "window_sensors": "Optional window detection"
+          "window_sensors": "Window sensors"
         },
         "data_description": {
           "time_windows": "Add or remove operating intervals. Overnight intervals continue into the next day.",

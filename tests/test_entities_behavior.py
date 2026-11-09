@@ -77,6 +77,12 @@ class EntityTests(unittest.IsolatedAsyncioTestCase):
         )
         scenarios = [
             ({}, None),
+            ({"windows_open": True, "auto_enabled": True, "is_full": True,
+              "is_on": True, "manual_override": True}, "Window open"),
+            ({"windows_open": True, "auto_enabled": False, "is_on": True}, "Dehumidifying"),
+            ({"windows_open": True, "auto_enabled": False}, "Automatic control disabled"),
+            ({"windows_open": True, "auto_enabled": True, "inside_schedule": False,
+              "humidity_low": True}, "Window open"),
             ({"is_full": True, "is_on": True}, "Full"),
             ({"is_on": True}, "Dehumidifying"),
             ({"manual_override": True}, "Dehumidifying"),
@@ -148,6 +154,10 @@ class EntityTests(unittest.IsolatedAsyncioTestCase):
         self.coordinator.data = {"auto_enabled": False, "inside_schedule": True}
         self.assertEqual(entity.native_value, "Automatic control disabled")
         self.assertFalse(entity.extra_state_attributes["auto_enabled"])
+        self.coordinator.data["windows_open"] = True
+        self.assertTrue(entity.extra_state_attributes["windows_open"])
+        self.coordinator.data["windows_open"] = False
+        self.assertFalse(entity.extra_state_attributes["windows_open"])
 
 
 if __name__ == "__main__":
