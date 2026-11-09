@@ -83,6 +83,38 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["type"], "create_entry")
         self.assertEqual(result["data"], settings)
 
+    async def test_window_options_defaults_and_removal(self):
+        from dehumidifier_plug.models import DehumidifierConfig, merge_entry_settings
+        data = {
+            "name": "Bedroom", "switch_entity": "switch.plug",
+            "power_sensor": "sensor.power", "humidity_sensor": "sensor.rh",
+            "window_sensors": ["binary_sensor.window", "binary_sensor.door"],
+            "time_windows": [{"start": "10:00", "end": "11:00"}],
+        }
+        handler = self.flow.DehumidifierOptionsFlowHandler(SimpleNamespace(data=data, options={}))
+        response = await handler.async_step_init()
+        field = next(k for k in response["data_schema"].schema if k.schema == "window_sensors")
+        self.assertEqual(field.default(), data["window_sensors"])
+        result = await handler.async_step_init({**data, "window_sensors": []})
+        self.assertEqual(result["type"], "create_entry")
+        merged = merge_entry_settings(data, result["data"])
+        self.assertEqual(DehumidifierConfig.from_dict(merged).window_sensors, [])
+        self.assertEqual(DehumidifierConfig.from_dict(data).window_sensors, data["window_sensors"])
+        legacy = {key: value for key, value in data.items() if key != "window_sensors"}
+        first = DehumidifierConfig.from_dict(legacy)
+        second = DehumidifierConfig.from_dict(legacy)
+        first.window_sensors.append("binary_sensor.other")
+        self.assertEqual(second.window_sensors, [])
+        fields = self.flow.window_sensor_fields({})
+        self.assertEqual(next(iter(fields)).default(), [])
+
+    async def test_window_selector_filters_opening_classes(self):
+        from unittest.mock import patch
+        with patch.object(self.flow.selector, "EntitySelectorConfig", side_effect=lambda **kw: kw) as config:
+            self.flow.window_sensor_fields({})
+        config.assert_called_once_with(
+            domain="binary_sensor", device_class=["opening", "window", "door"], multiple=True)
+
     async def test_invalid_options_show_translated_error(self):
         handler = self.flow.DehumidifierOptionsFlowHandler(SimpleNamespace(data={}, options={}))
         result = await handler.async_step_init({"time_windows": []})

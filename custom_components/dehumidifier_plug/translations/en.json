@@ -17,12 +17,14 @@
           "time_windows": "Operating intervals",
           "full_timeout": "Low-power timeout (seconds)",
           "notifications_enabled": "Notify when the tank may be full",
-          "notification_targets": "Notification recipients"
+          "notification_targets": "Notification recipients",
+          "window_sensors": "Window sensors"
         },
         "data_description": {
           "time_windows": "Add or remove operating intervals. Overnight intervals continue into the next day.",
           "weekdays": "Select the days when automatic dehumidification is allowed.",
-          "full_timeout": "Time that power must remain below the threshold while the plug is on."
+          "full_timeout": "Time that power must remain below the threshold while the plug is on.",
+          "window_sensors": "Select optional window sensors to pause dehumidification when opened."
         }
       }
     },
@@ -48,12 +50,14 @@
           "time_windows": "Operating intervals",
           "full_timeout": "Low-power timeout (seconds)",
           "notifications_enabled": "Notify when the tank may be full",
-          "notification_targets": "Notification recipients"
+          "notification_targets": "Notification recipients",
+          "window_sensors": "Window sensors"
         },
         "data_description": {
           "time_windows": "Add or remove operating intervals. Overnight intervals continue into the next day.",
           "weekdays": "Select the days when automatic dehumidification is allowed.",
-          "full_timeout": "Time that power must remain below the threshold while the plug is on."
+          "full_timeout": "Time that power must remain below the threshold while the plug is on.",
+          "window_sensors": "Select optional window sensors to pause dehumidification when opened."
         }
       }
     },

@@ -106,7 +106,7 @@ class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):
     async def test_initial_form_has_dynamic_intervals(self):
         output = await flow.DehumidifierConfigFlow().async_step_user()
         self.assertEqual(output["type"], "form")
-        self.assertEqual(len(output["data_schema"].schema), 12)
+        self.assertEqual(len(output["data_schema"].schema), 13)
 
     async def test_options_factory_accepts_config_entry(self):
         entry = SimpleNamespace(data=legacy, options={})

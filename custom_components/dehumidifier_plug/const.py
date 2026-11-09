@@ -10,6 +10,7 @@ CONF_HUMIDITY_ON = "humidity_on_threshold"
 CONF_HUMIDITY_OFF = "humidity_off_threshold"
 CONF_START_TIME = "start_time"
 CONF_END_TIME = "end_time"
+CONF_WINDOW_SENSORS = "window_sensors"
 
 # Default values for configuration
 DEFAULT_FULL_THRESHOLD = 2.0  # Watts: below this is considered full

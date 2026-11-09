@@ -44,6 +44,26 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             state_power = self.hass.states.get(self.config.power_sensor)
             state_humidity = self.hass.states.get(self.config.humidity_sensor)
 
+            # A known opening takes priority over all other dependency faults.
+            # Only a positively observed running switch can receive a stop command.
+            window_states = {
+                entity: self.hass.states.get(entity)
+                for entity in (self.config.window_sensors or [])
+            }
+            windows_open = any(
+                state is not None and state.state in ("on", "open")
+                for state in window_states.values()
+            )
+            auto_control = getattr(self, "auto_control", None)
+            auto_enabled = auto_control is not None and auto_control.ready and auto_control.is_on
+            window_stop_sent = False
+            if windows_open and auto_enabled and state_switch and state_switch.state == "on":
+                await self.hass.services.async_call("switch", "turn_off", {"entity_id": self.config.switch_entity}, blocking=True)
+                window_stop_sent = True
+                self._manual_override = False
+                self._auto_turning_on = False
+                await self.save_persistent_data()
+
             if not state_switch or not state_power or not state_humidity:
                 missing = [entity for entity, state in ((self.config.switch_entity, state_switch), (self.config.power_sensor, state_power), (self.config.humidity_sensor, state_humidity)) if not state]
                 raise UpdateFailed(f"Missing entity states: {', '.join(missing)}")
@@ -54,8 +74,13 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             if state_switch.state not in ("on", "off"):
                 raise UpdateFailed(f"Invalid switch state: {self.config.switch_entity}={state_switch.state}")
 
-            auto_control = getattr(self, "auto_control", None)
-            auto_enabled = auto_control is not None and auto_control.ready and auto_control.is_on
+            if not windows_open:
+                faulty_windows = [
+                    entity for entity, state in window_states.items()
+                    if state is None or state.state not in ("off", "closed")
+                ]
+                if faulty_windows:
+                    raise UpdateFailed(f"Unavailable or invalid window sensors: {', '.join(faulty_windows)}")
 
             is_on = state_switch.state == "on"
             power = float(state_power.state)
@@ -84,7 +109,7 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             self._last_switch_state = state_switch.state
 
             if previous_state is not None and previous_state != state_switch.state:
-                if state_switch.state == "on" and not self._auto_turning_on:
+                if state_switch.state == "on" and not self._auto_turning_on and not window_stop_sent:
                     self._manual_override = True
                     _LOGGER.debug(f"{self.config.name} - Manual override detected: switch turned on manually.")
                 elif state_switch.state == "off":
@@ -94,7 +119,7 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
 
             # Full detection logic and latching
             is_full = False
-            if is_on and power < self.config.full_power_threshold:
+            if is_on and not window_stop_sent and power < self.config.full_power_threshold:
                 if not self._power_low_since:
                     self._power_low_since = now_utc
                     _LOGGER.debug(f"{self.config.name} - Power dropped below threshold. Starting full timer...")
@@ -128,13 +153,17 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 f"{self.config.name} - Conditions: auto_enabled={auto_enabled}, inside_schedule={inside_schedule}, "
                 f"is_on={is_on}, humidity_low={humidity_low}, humidity_high={humidity_high}, "
-                f"is_full={is_full}, manual_override={self._manual_override}"
+                f"is_full={is_full}, manual_override={self._manual_override}, windows_open={windows_open}"
             )
 
             # Automatic control logic
             if auto_enabled:
                 self._auto_turning_on = False
-                if inside_schedule:
+                if windows_open:
+                    # Stop was handled before dependency validation. Do not
+                    # remember an interrupted cycle: closing uses normal hysteresis.
+                    _LOGGER.debug(f"{self.config.name} - Window open. Automatic start blocked.")
+                elif inside_schedule:
                     if humidity_high and not is_full and not is_on:
                         _LOGGER.info(f"{self.config.name} - Turning on dehumidifier...")
                         self._auto_turning_on = True
@@ -165,7 +194,7 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 f"{self.config.name} - Dehumidifier data: is_on={is_on}, power={power:.2f}, humidity={humidity:.2f}, "
                 f"inside_schedule={inside_schedule}, humidity_low={humidity_low}, humidity_high={humidity_high}, "
-                f"is_full={is_full}"
+                f"is_full={is_full}, windows_open={windows_open}"
             )
 
             # Refresh the observed switch state after any command. The
@@ -182,6 +211,7 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
                 "humidity_high": humidity_high,
                 "manual_override": self._manual_override,
                 "auto_enabled": auto_enabled,
+                "windows_open": windows_open,
             }
 
         except Exception as e:
@@ -250,4 +280,3 @@ class DehumidifierCoordinator(DataUpdateCoordinator):
             })
         except Exception as err:
             _LOGGER.warning("%s - Failed to save persistent data: %s", self.config.name, err)
-

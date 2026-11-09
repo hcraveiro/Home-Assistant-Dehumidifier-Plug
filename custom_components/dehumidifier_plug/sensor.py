@@ -47,7 +47,10 @@ class DehumidifierSensor(SensorEntity):
         if not data:
             return None
 
-        # Priority: Full > Dehumidifying > Outside hours > Below target > Idle
+        # Window blocking is meaningful only while automatic control is enabled.
+        # Prioritize the active interlock even while a stop is awaiting feedback.
+        if data.get("windows_open") and data.get("auto_enabled"):
+            return "Window open"
         if data.get("is_full"):
             return "Full"
         if data.get("is_on") or data.get("manual_override"):
@@ -66,7 +69,7 @@ class DehumidifierSensor(SensorEntity):
         data = self.coordinator.data or {}
         return {key: data.get(key) for key in (
             "auto_enabled", "inside_schedule", "humidity_low", "humidity_high",
-            "manual_override", "is_full", "is_on",
+            "manual_override", "is_full", "is_on", "windows_open",
         )}
 
     @property

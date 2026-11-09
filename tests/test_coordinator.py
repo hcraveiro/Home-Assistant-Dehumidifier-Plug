@@ -93,6 +93,115 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         dt.utcnow = dt.now
         return states
 
+    async def test_window_states_block_or_allow_start(self):
+        for state, expected in (("on", False), ("open", False), ("off", True), ("closed", True)):
+            with self.subTest(state=state):
+                states = self.create()
+                self.unit.config.window_sensors = ["binary_sensor.window"]
+                states["binary_sensor.window"] = SimpleNamespace(state=state)
+                data = await self.unit._async_update_data()
+                self.assertEqual(data["windows_open"], not expected)
+                self.assertEqual(self.unit.hass.services.async_call.await_count, int(expected))
+
+    async def test_open_window_stops_even_manual_outside_schedule_or_full(self):
+        for inside in (True, False):
+            states = self.create(switch="on", inside=inside)
+            self.unit._last_switch_state = "off"
+            self.unit._is_full_latched = True
+            self.unit.config.window_sensors = ["binary_sensor.window"]
+            states["binary_sensor.window"] = SimpleNamespace(state="on")
+            data = await self.unit._async_update_data()
+            self.unit.hass.services.async_call.assert_awaited_once_with(
+                "switch", "turn_off", {"entity_id": "switch.plug"}, blocking=True)
+            self.assertFalse(data["manual_override"])
+
+    async def test_open_priority_over_other_window_faults_in_either_order(self):
+        for fault in (None, "unknown", "unavailable", "unexpected"):
+            for reverse in (False, True):
+                with self.subTest(fault=fault, reverse=reverse):
+                    states = self.create(switch="on", power="150")
+                    sensors = ["binary_sensor.open", "binary_sensor.fault"]
+                    self.unit.config.window_sensors = sensors[::-1] if reverse else sensors
+                    states[sensors[0]] = SimpleNamespace(state="on")
+                    if fault is not None:
+                        states[sensors[1]] = SimpleNamespace(state=fault)
+                    self.assertTrue((await self.unit._async_update_data())["windows_open"])
+                    self.unit.hass.services.async_call.assert_awaited_once()
+
+    async def test_window_fault_without_known_open_pauses_commands(self):
+        for switch in ("on", "off"):
+            for fault in (None, "unknown", "unavailable", "unexpected"):
+                with self.subTest(switch=switch, fault=fault):
+                    states = self.create(switch=switch, power="150")
+                    self.unit.config.window_sensors = ["binary_sensor.closed", "binary_sensor.fault"]
+                    states["binary_sensor.closed"] = SimpleNamespace(state="off")
+                    if fault is not None:
+                        states["binary_sensor.fault"] = SimpleNamespace(state=fault)
+                    with self.assertRaises(coordinator.UpdateFailed):
+                        await self.unit._async_update_data()
+                    self.unit.hass.services.async_call.assert_not_awaited()
+                    self.assertIn("binary_sensor.fault", self.unit.unavailable_reason)
+
+    async def test_known_open_stops_before_other_dependency_failure(self):
+        for fault in (None, "unavailable", "nonnumeric"):
+            states = self.create(switch="on", power="150")
+            self.unit.config.window_sensors = ["binary_sensor.window"]
+            states["binary_sensor.window"] = SimpleNamespace(state="on")
+            if fault is None:
+                del states["sensor.humidity"]
+            else:
+                states["sensor.humidity"].state = fault
+            with self.assertRaises(coordinator.UpdateFailed):
+                await self.unit._async_update_data()
+            self.unit.hass.services.async_call.assert_awaited_once_with(
+                "switch", "turn_off", {"entity_id": "switch.plug"}, blocking=True)
+
+    async def test_open_window_does_not_control_when_disabled_or_not_ready(self):
+        for ready in (True, False):
+            states = self.create(switch="on", auto="off" if ready else "on")
+            self.unit.auto_control.ready = ready
+            self.unit.config.window_sensors = ["binary_sensor.window"]
+            states["binary_sensor.window"] = SimpleNamespace(state="on")
+            self.assertTrue((await self.unit._async_update_data())["windows_open"])
+            self.unit.hass.services.async_call.assert_not_awaited()
+
+    async def test_closing_window_requires_normal_hysteresis_start(self):
+        states = self.create(switch="on", power="150", humidity="55")
+        self.unit.config.window_sensors = ["binary_sensor.window"]
+        states["binary_sensor.window"] = SimpleNamespace(state="on")
+        await self.unit._async_update_data()
+        states["switch.plug"].state = "off"
+        states["binary_sensor.window"].state = "off"
+        self.unit.hass.services.async_call.reset_mock()
+        for humidity in ("55", "60"):
+            states["sensor.humidity"].state = humidity
+            await self.unit._async_update_data()
+            self.unit.hass.services.async_call.assert_not_awaited()
+        states["sensor.humidity"].state = "61"
+        await self.unit._async_update_data()
+        self.unit.hass.services.async_call.assert_awaited_once_with(
+            "switch", "turn_on", {"entity_id": "switch.plug"}, blocking=True)
+
+    async def test_window_stop_clears_full_timer_without_notifying(self):
+        states = self.create(switch="on", power="0")
+        self.unit._power_low_since = dt.utcnow() - timedelta(seconds=61)
+        self.unit.config.window_sensors = ["binary_sensor.window"]
+        self.unit.config.notifications_enabled = True
+        states["binary_sensor.window"] = SimpleNamespace(state="on")
+        result = await self.unit._async_update_data()
+        self.assertFalse(result["is_full"])
+        self.assertIsNone(self.unit._power_low_since)
+        self.assertFalse(self.unit._is_full_latched)
+
+    async def test_window_stop_failure_is_reported(self):
+        states = self.create(switch="on")
+        self.unit.config.window_sensors = ["binary_sensor.window"]
+        states["binary_sensor.window"] = SimpleNamespace(state="on")
+        self.unit.hass.services.async_call.side_effect = RuntimeError("stop failed")
+        with self.assertRaises(coordinator.UpdateFailed):
+            await self.unit._async_update_data()
+        self.assertIn("stop failed", self.unit.unavailable_reason)
+
     async def test_high_humidity_starts(self):
         self.create()
         data = await self.unit._async_update_data()

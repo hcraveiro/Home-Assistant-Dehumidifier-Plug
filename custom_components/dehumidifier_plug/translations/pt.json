@@ -17,12 +17,14 @@
           "time_windows": "Intervalos de funcionamento",
           "full_timeout": "Tempo de baixa potência (segundos)",
           "notifications_enabled": "Notificar quando o depósito possa estar cheio",
-          "notification_targets": "Destinatários das notificações"
+          "notification_targets": "Destinatários das notificações",
+          "window_sensors": "Sensores de janela"
         },
         "data_description": {
           "time_windows": "Adiciona ou remove intervalos. Os intervalos que atravessam a meia-noite continuam no dia seguinte.",
           "weekdays": "Seleciona os dias em que o funcionamento automático é permitido.",
-          "full_timeout": "Tempo durante o qual a potência deve permanecer abaixo do limiar com a tomada ligada."
+          "full_timeout": "Tempo durante o qual a potência deve permanecer abaixo do limiar com a tomada ligada.",
+          "window_sensors": "Seleciona sensores de janela opcionais para pausar a desumidificação quando abertos."
         }
       }
     },
@@ -48,12 +50,14 @@
           "time_windows": "Intervalos de funcionamento",
           "full_timeout": "Tempo de baixa potência (segundos)",
           "notifications_enabled": "Notificar quando o depósito possa estar cheio",
-          "notification_targets": "Destinatários das notificações"
+          "notification_targets": "Destinatários das notificações",
+          "window_sensors": "Sensores de janela"
         },
         "data_description": {
           "time_windows": "Adiciona ou remove intervalos. Os intervalos que atravessam a meia-noite continuam no dia seguinte.",
           "weekdays": "Seleciona os dias em que o funcionamento automático é permitido.",
-          "full_timeout": "Tempo durante o qual a potência deve permanecer abaixo do limiar com a tomada ligada."
+          "full_timeout": "Tempo durante o qual a potência deve permanecer abaixo do limiar com a tomada ligada.",
+          "window_sensors": "Seleciona sensores de janela opcionais para pausar a desumidificação quando abertos."
         }
       }
     },

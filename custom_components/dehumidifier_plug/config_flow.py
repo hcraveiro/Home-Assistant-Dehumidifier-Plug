@@ -9,7 +9,7 @@ from .const import (
     CONF_FULL_THRESHOLD, CONF_HUMIDITY_ON, CONF_HUMIDITY_OFF,
     CONF_START_TIME, CONF_END_TIME, CONF_WEEKDAYS, CONF_TIME_WINDOWS,
     DEFAULT_FULL_THRESHOLD, DEFAULT_HUMIDITY_ON, DEFAULT_HUMIDITY_OFF,
-    DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_WEEKDAYS,
+    DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_WEEKDAYS, CONF_WINDOW_SENSORS,
 )
 
 WEEKDAY_SELECTOR = selector.SelectSelector(selector.SelectSelectorConfig(
@@ -107,6 +107,22 @@ def threshold_fields(data):
     }
 
 
+def window_sensor_fields(data):
+    """Expose optional window sensors in setup and options."""
+    return {
+        vol.Optional(
+            CONF_WINDOW_SENSORS,
+            default=data.get(CONF_WINDOW_SENSORS, []),
+        ): selector.EntitySelector(
+            selector.EntitySelectorConfig(
+                domain="binary_sensor",
+                device_class=["opening", "window", "door"],
+                multiple=True,
+            )
+        ),
+    }
+
+
 class DehumidifierConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -131,6 +147,7 @@ class DehumidifierConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 **threshold_fields(user_input or {}),
                 **notification_fields(user_input or {}, self.hass),
                 **schedule_fields(user_input or {}),
+                **window_sensor_fields(user_input or {}),
             }),
         )
 
@@ -159,5 +176,6 @@ class DehumidifierOptionsFlowHandler(config_entries.OptionsFlow):
                 **threshold_fields(data),
                 **notification_fields(data, self.hass),
                 **schedule_fields(data),
+                **window_sensor_fields(data),
             }),
         )
